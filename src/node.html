@@ -1,7 +1,7 @@
-<script type="text/javascaript">
-  (function() {
-  	var DONGTIEN_DEVICE_TEMPLATES = {
-  		ilec_mfm300: {
+<script type="text/javascript">
+  (function () {
+    var DONGTIEN_DEVICE_TEMPLATES = {
+      ilec_mfm300: {
         device: 'iLEC MFM300',
         metrics: [
           { key: 'Ua', name: 'Phase A Voltage', unit: 'V', div: 1000 },
@@ -17,9 +17,24 @@
           { key: 'Pb', name: 'Phase B Active Power', unit: 'kW', div: 1000 },
           { key: 'Pc', name: 'Phase C Active Power', unit: 'kW', div: 1000 },
           { key: 'Pt', name: 'Total Active Power', unit: 'kW', div: 1000 },
-          { key: 'Qa', name: 'Phase A Reactive Power', unit: 'kVAR', div: 1000 },
-          { key: 'Qb', name: 'Phase B Reactive Power', unit: 'kVAR', div: 1000 },
-          { key: 'Qc', name: 'Phase C Reactive Power', unit: 'kVAR', div: 1000 },
+          {
+            key: 'Qa',
+            name: 'Phase A Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
+          {
+            key: 'Qb',
+            name: 'Phase B Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
+          {
+            key: 'Qc',
+            name: 'Phase C Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
           { key: 'Qt', name: 'Total Reactive Power', unit: 'kVAR', div: 1000 },
           { key: 'Sa', name: 'Phase A Apparent Power', unit: 'kVA', div: 1000 },
           { key: 'Sb', name: 'Phase B Apparent Power', unit: 'kVA', div: 1000 },
@@ -30,8 +45,18 @@
           { key: 'PFc', name: 'Phase C Power Factor', unit: 'None', div: 1000 },
           { key: 'PFt', name: 'Total Power Factor', unit: 'None', div: 1000 },
           { key: 'Freq', name: 'Frequency', unit: 'Hz', div: 100 },
-          { key: 'ImpEp', name: 'Total Import Active Energy', unit: 'kWh', div: 1000 },
-          { key: 'ImpEq', name: 'Total Import Reactive Energy', unit: 'kVARh', div: 1000 },
+          {
+            key: 'ImpEp',
+            name: 'Total Import Active Energy',
+            unit: 'kWh',
+            div: 1000,
+          },
+          {
+            key: 'ImpEq',
+            name: 'Total Import Reactive Energy',
+            unit: 'kVARh',
+            div: 1000,
+          },
         ],
       },
       arcel_acm96l_e4: {
@@ -50,9 +75,24 @@
           { key: 'Pb', name: 'Phase B Active Power', unit: 'kW', div: 1000 },
           { key: 'Pc', name: 'Phase C Active Power', unit: 'kW', div: 1000 },
           { key: 'Pt', name: 'Total Active Power', unit: 'kW', div: 1000 },
-          { key: 'Qa', name: 'Phase A Reactive Power', unit: 'kVAR', div: 1000 },
-          { key: 'Qb', name: 'Phase B Reactive Power', unit: 'kVAR', div: 1000 },
-          { key: 'Qc', name: 'Phase C Reactive Power', unit: 'kVAR', div: 1000 },
+          {
+            key: 'Qa',
+            name: 'Phase A Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
+          {
+            key: 'Qb',
+            name: 'Phase B Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
+          {
+            key: 'Qc',
+            name: 'Phase C Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
           { key: 'Qt', name: 'Total Reactive Power', unit: 'kVAR', div: 1000 },
           { key: 'Sa', name: 'Phase A Apparent Power', unit: 'kVA', div: 1000 },
           { key: 'Sb', name: 'Phase B Apparent Power', unit: 'kVA', div: 1000 },
@@ -63,8 +103,18 @@
           { key: 'PFc', name: 'Phase C Power Factor', unit: 'None', div: 1000 },
           { key: 'PFt', name: 'Total Power Factor', unit: 'None', div: 1000 },
           { key: 'Freq', name: 'Frequency', unit: 'Hz', div: 100 },
-          { key: 'ImpEp', name: 'Total Import Active Energy', unit: 'kWh', div: 1000 },
-          { key: 'ExpEp', name: 'Total Export Active Energy', unit: 'kWh', div: 1000 },
+          {
+            key: 'ImpEp',
+            name: 'Total Import Active Energy',
+            unit: 'kWh',
+            div: 1000,
+          },
+          {
+            key: 'ExpEp',
+            name: 'Total Export Active Energy',
+            unit: 'kWh',
+            div: 1000,
+          },
         ],
       },
       chint_pd7777: {
@@ -83,9 +133,24 @@
           { key: 'Pb', name: 'Phase B Active Power', unit: 'kW', div: 1000 },
           { key: 'Pc', name: 'Phase C Active Power', unit: 'kW', div: 1000 },
           { key: 'Pt', name: 'Total Active Power', unit: 'kW', div: 1000 },
-          { key: 'Qa', name: 'Phase A Reactive Power', unit: 'kVAR', div: 1000 },
-          { key: 'Qb', name: 'Phase B Reactive Power', unit: 'kVAR', div: 1000 },
-          { key: 'Qc', name: 'Phase C Reactive Power', unit: 'kVAR', div: 1000 },
+          {
+            key: 'Qa',
+            name: 'Phase A Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
+          {
+            key: 'Qb',
+            name: 'Phase B Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
+          {
+            key: 'Qc',
+            name: 'Phase C Reactive Power',
+            unit: 'kVAR',
+            div: 1000,
+          },
           { key: 'Qt', name: 'Total Reactive Power', unit: 'kVAR', div: 1000 },
           { key: 'Sa', name: 'Phase A Apparent Power', unit: 'kVA', div: 1000 },
           { key: 'Sb', name: 'Phase B Apparent Power', unit: 'kVA', div: 1000 },
@@ -96,30 +161,63 @@
           { key: 'PFc', name: 'Phase C Power Factor', unit: 'None', div: 1000 },
           { key: 'PFt', name: 'Total Power Factor', unit: 'None', div: 1000 },
           { key: 'Freq', name: 'Frequency', unit: 'Hz', div: 100 },
-          { key: 'ImpEp', name: 'Total Import Active Energy', unit: 'kWh', div: 1 },
+          {
+            key: 'ImpEp',
+            name: 'Total Import Active Energy',
+            unit: 'kWh',
+            div: 1,
+          },
         ],
       },
       custom: {
         device: '',
         metrics: [],
       },
-  	};
+    };
 
     function metricsListInit($list, metrics) {
-  	  $list.editableList({
-  	  	addButton: "Add keys",
-  	  	removable: true,
-  	  	sortable: true,
-  	  	height: 260,
-  	  	header: $('<div/>').css({ display: 'flex' }).append(
-  	  		$('<div/>').css({ width: '18%', display: 'inline-block', fontWeight: 'bold' }).text('Key'),
-  	  		$('<div/>').css({ width: '37%', display: 'inline-block', fontWeight: 'bold' }).text('Name'),
-  	  		$('<div/>').css({ width: '18%', display: 'inline-block', fontWeight: 'bold' }).text('Unit'),
-  	  		$('<div/>').css({ width: '18%', display: 'inline-block', fontWeight: 'bold' }).text('Div'),
-  	  	),
+      $list.editableList({
+        addButton: 'Add keys',
+        removable: true,
+        sortable: true,
+        height: 260,
+        header: $('<div/>')
+          .css({ display: 'flex' })
+          .append(
+            $('<div/>')
+              .css({
+                width: '18%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Key'),
+            $('<div/>')
+              .css({
+                width: '37%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Name'),
+            $('<div/>')
+              .css({
+                width: '18%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Unit'),
+            $('<div/>')
+              .css({
+                width: '18%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Div'),
+          ),
         addItem: function (container, _index, data) {
           data = data || {};
-          var row = $('<div/>').css({ display: 'flex', gap: '4px' }).appendTo(container);
+          var row = $('<div/>')
+            .css({ display: 'flex', gap: '4px' })
+            .appendTo(container);
 
           var keyInput = $('<input/>', {
             type: 'text',
@@ -160,7 +258,7 @@
             divInput: divInput,
           });
         },
-  	  });
+      });
 
       (metrics || []).forEach(function (m) {
         $list.editableList('addItem', m);
@@ -200,17 +298,17 @@
         db: { value: 'dongtien', required: true },
         precision: { value: 'ns' },
         shiftVar: { value: 'shift' },
-        metrics: { value: DONGTIEN_DEVICE_TEMPLATES.ilec_mfm300:.metrics },
+        metrics: { value: DONGTIEN_DEVICE_TEMPLATES.ilec_mfm300.metrics },
       },
       inputs: 1,
       outputs: 1,
       icon: 'font-awesome/fa-bolt',
       paletteLabel: 'dongtien-insert',
-      label: function() {
+      label: function () {
         return this.name || this.device || 'dongtien-insert';
       },
-      labelStyle: function() {
-        return this.name ? 'node_label_italic': '';
+      labelStyle: function () {
+        return this.name ? 'node_label_italic' : '';
       },
       oneditprepare: function () {
         var node = this;
@@ -227,7 +325,7 @@
           }
         });
 
-        $('#node-load-default-metrics').on('click', function() {
+        $('#node-load-default-metrics').on('click', function () {
           var type = $('#node-input-deviceType').val();
           var tpl = DONGTIEN_DEVICE_TEMPLATES[type];
           if (!tpl) return;
@@ -236,8 +334,8 @@
             $list.editableList('length') > 0 &&
             !window.confirm(
               'This operation will replace the entire current mapping table with the default one."' +
-              type +
-              '". Continue?',
+                type +
+                '". Continue?',
             )
           ) {
             return;
@@ -245,7 +343,7 @@
 
           $list.editableList('empty');
           tpl.metrics.forEach(function (m) {
-            $list.editableList('addItem',m);
+            $list.editableList('addItem', m);
           });
           if (tpl.device) {
             $('#node-input-device').val(tpl.device);
@@ -255,9 +353,9 @@
       oneditsave: function () {
         var $list = $('#node-input-metrics-container');
         this.metrics = metricsListGetValue($list);
-      }
+      },
     });
-  })
+  })();
 </script>
 
 <script type="text/html" data-template-name="dongtien-insert">
