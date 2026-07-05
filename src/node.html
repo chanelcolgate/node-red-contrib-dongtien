@@ -243,7 +243,7 @@
         } else if (c === '\n' || c === '\r') {
           if (c === '\r' && text[i + 1] === '\n') i++;
           row.push(field);
-          row.push(row);
+          rows.push(row);
           row = [];
           field = '';
         } else {
@@ -275,13 +275,13 @@
         colIdx = {
           key: header.indexOf('key'),
           name: header.indexOf('name'),
-          unit: header.indexOf('unit')
+          unit: header.indexOf('unit'),
           div: header.indexOf('div'),
         };
       }
 
       var result = [];
-      for (var i = startIdx; i < rows.length i++) {
+      for (var i = startIdx; i < rows.length; i++) {
         var r = rows[i];
         var key = (r[colIdx.key] || '').trim();
         if (!key) continue;
@@ -426,9 +426,9 @@
       category: 'config',
       defaults: {
         name: { value: '', required: true },
+        device: { value: '' },
+        metrics: { value: [] },
       },
-      device: { value: '' },
-      metrics: { value: [] },
       label: function () {
         return this.name || this.device || 'meter-config';
       },
@@ -437,12 +437,17 @@
         metricsListInit($list, this.metrics);
 
         // Preset
-        $('.dongtien-preset-btn').on('click', function() {
+        $('.dongtien-preset-btn').on('click', function () {
           var key = $(this).data('preset');
           var tpl = DONGTIEN_DEVICE_TEMPLATES[key];
-          f (!tpl) return;
+          if (!tpl) return;
 
-          if ($list.editableList('length') > 0 && !window.confirm('This operation will replace the entire current mapping table with the defualt one.')) {
+          if (
+            $list.editableList('length') > 0 &&
+            !window.confirm(
+              'This operation will replace the entire current mapping table with the defualt one.',
+            )
+          ) {
             return;
           }
 
@@ -458,7 +463,7 @@
           var name = $('#node-config-input-name').val() || 'meter-config';
           downloadTextFile(
             name.replace(/[^\w-]+/g, '_') + '.csv',
-            metricsToCsv(metrics)
+            metricsToCsv(metrics),
           );
         });
 
@@ -472,11 +477,20 @@
             try {
               var metrics = metricsFromCsv(String(e.target.result));
               if (metrics.length === 0) {
-                window.alert('No valid data rows could be read from the CSV file.');
+                window.alert(
+                  'No valid data rows could be read from the CSV file.',
+                );
                 return;
               }
 
-              if ($list.editableList('length') > 0 && !window.confirm('The import will replace the entire current mapping table with ' + metrics.length + ' lines from the CSV file. Continue?')) {
+              if (
+                $list.editableList('length') > 0 &&
+                !window.confirm(
+                  'The import will replace the entire current mapping table with ' +
+                    metrics.length +
+                    ' lines from the CSV file. Continue?',
+                )
+              ) {
                 return;
               }
               metricsListReplace($list, metrics);
@@ -509,7 +523,6 @@
         transformer: { value: '3000KVA' },
         parentSystem: { value: 'MCC XEO' },
         subSystem: { value: '' },
-        device: { value: '' },
         device: { value: 'iLEC MFM300', required: true },
         measurement: { value: 'electric_measurement', required: true },
         db: { value: 'dongtien', required: true },
@@ -616,6 +629,13 @@
       style="display: none"
     />
   </div>
+  <div class="form-row">
+    <ol id="node-config-input-metrics-container" style="min-height: 260px"></ol>
+  </div>
+  <div class="form-tips">
+    <i class="fa fa-info-circle"></i> Files CSV need columns <code>key,name,unit,div</code>
+  </div>
+  <div>
     <input type="text" id="node-input-device" placeholder="Exp: iLEC MFM300" />
   </div>
 
