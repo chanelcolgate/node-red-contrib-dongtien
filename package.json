@@ -17,11 +17,12 @@
     "typescript-eslint": "^8.62.1"
   },
   "scripts": {
-    "build": "rm -r dist && npm run build:cjs",
+    "build": "rm -rf dist && npm run build:cjs",
     "build:cjs": "tsc --module commonjs --outDir dist && cp src/*.html dist/",
     "test": "eslint . --ignore-pattern dist/",
-    "prepare": "if [ -d .git ]; then husky; fi"
+    "prepare": "npm run build && if [ -d .git ]; then husky; fi"
   },
+  "main": "dist/node.js",
   "node-red": {
     "nodes": {
       "dongtien-insert": "dist/node.js"
