@@ -1,0 +1,436 @@
+<script type="text/javascaript">
+  (function() {
+  	var DONGTIEN_DEVICE_TEMPLATES = {
+  		ilec_mfm300: {
+        device: 'iLEC MFM300',
+        metrics: [
+          { key: 'Ua', name: 'Phase A Voltage', unit: 'V', div: 1000 },
+          { key: 'Ub', name: 'Phase B Voltage', unit: 'V', div: 1000 },
+          { key: 'Uc', name: 'Phase C Voltage', unit: 'V', div: 1000 },
+          { key: 'Uab', name: 'Line Voltage AB', unit: 'V', div: 1000 },
+          { key: 'Ubc', name: 'Line Voltage BC', unit: 'V', div: 1000 },
+          { key: 'Uca', name: 'Line Voltage CA', unit: 'V', div: 1000 },
+          { key: 'Ia', name: 'Phase A Current', unit: 'A', div: 1000 },
+          { key: 'Ib', name: 'Phase B Current', unit: 'A', div: 1000 },
+          { key: 'Ic', name: 'Phase C Current', unit: 'A', div: 1000 },
+          { key: 'Pa', name: 'Phase A Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pb', name: 'Phase B Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pc', name: 'Phase C Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pt', name: 'Total Active Power', unit: 'kW', div: 1000 },
+          { key: 'Qa', name: 'Phase A Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qb', name: 'Phase B Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qc', name: 'Phase C Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qt', name: 'Total Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Sa', name: 'Phase A Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'Sb', name: 'Phase B Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'Sc', name: 'Phase C Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'St', name: 'Total Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'PFa', name: 'Phase A Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFb', name: 'Phase B Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFc', name: 'Phase C Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFt', name: 'Total Power Factor', unit: 'None', div: 1000 },
+          { key: 'Freq', name: 'Frequency', unit: 'Hz', div: 100 },
+          { key: 'ImpEp', name: 'Total Import Active Energy', unit: 'kWh', div: 1000 },
+          { key: 'ImpEq', name: 'Total Import Reactive Energy', unit: 'kVARh', div: 1000 },
+        ],
+      },
+      arcel_acm96l_e4: {
+        device: 'Arcel ACM 96L E4',
+        metrics: [
+          { key: 'Ua', name: 'Phase A Voltage', unit: 'V', div: 10 },
+          { key: 'Ub', name: 'Phase B Voltage', unit: 'V', div: 10 },
+          { key: 'Uc', name: 'Phase C Voltage', unit: 'V', div: 10 },
+          { key: 'Uab', name: 'Line Voltage AB', unit: 'V', div: 10 },
+          { key: 'Ubc', name: 'Line Voltage BC', unit: 'V', div: 10 },
+          { key: 'Uca', name: 'Line Voltage CA', unit: 'V', div: 10 },
+          { key: 'Ia', name: 'Phase A Current', unit: 'A', div: 1000 },
+          { key: 'Ib', name: 'Phase B Current', unit: 'A', div: 1000 },
+          { key: 'Ic', name: 'Phase C Current', unit: 'A', div: 1000 },
+          { key: 'Pa', name: 'Phase A Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pb', name: 'Phase B Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pc', name: 'Phase C Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pt', name: 'Total Active Power', unit: 'kW', div: 1000 },
+          { key: 'Qa', name: 'Phase A Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qb', name: 'Phase B Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qc', name: 'Phase C Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qt', name: 'Total Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Sa', name: 'Phase A Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'Sb', name: 'Phase B Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'Sc', name: 'Phase C Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'St', name: 'Total Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'PFa', name: 'Phase A Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFb', name: 'Phase B Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFc', name: 'Phase C Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFt', name: 'Total Power Factor', unit: 'None', div: 1000 },
+          { key: 'Freq', name: 'Frequency', unit: 'Hz', div: 100 },
+          { key: 'ImpEp', name: 'Total Import Active Energy', unit: 'kWh', div: 1000 },
+          { key: 'ExpEp', name: 'Total Export Active Energy', unit: 'kWh', div: 1000 },
+        ],
+      },
+      chint_pd7777: {
+        device: 'CHINT PD7777',
+        metrics: [
+          { key: 'Ua', name: 'Phase A Voltage', unit: 'V', div: 10 },
+          { key: 'Ub', name: 'Phase B Voltage', unit: 'V', div: 10 },
+          { key: 'Uc', name: 'Phase C Voltage', unit: 'V', div: 10 },
+          { key: 'Uab', name: 'Line Voltage AB', unit: 'V', div: 10 },
+          { key: 'Ubc', name: 'Line Voltage BC', unit: 'V', div: 10 },
+          { key: 'Uca', name: 'Line Voltage CA', unit: 'V', div: 10 },
+          { key: 'Ia', name: 'Phase A Current', unit: 'A', div: 100 },
+          { key: 'Ib', name: 'Phase B Current', unit: 'A', div: 100 },
+          { key: 'Ic', name: 'Phase C Current', unit: 'A', div: 100 },
+          { key: 'Pa', name: 'Phase A Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pb', name: 'Phase B Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pc', name: 'Phase C Active Power', unit: 'kW', div: 1000 },
+          { key: 'Pt', name: 'Total Active Power', unit: 'kW', div: 1000 },
+          { key: 'Qa', name: 'Phase A Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qb', name: 'Phase B Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qc', name: 'Phase C Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Qt', name: 'Total Reactive Power', unit: 'kVAR', div: 1000 },
+          { key: 'Sa', name: 'Phase A Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'Sb', name: 'Phase B Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'Sc', name: 'Phase C Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'St', name: 'Total Apparent Power', unit: 'kVA', div: 1000 },
+          { key: 'PFa', name: 'Phase A Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFb', name: 'Phase B Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFc', name: 'Phase C Power Factor', unit: 'None', div: 1000 },
+          { key: 'PFt', name: 'Total Power Factor', unit: 'None', div: 1000 },
+          { key: 'Freq', name: 'Frequency', unit: 'Hz', div: 100 },
+          { key: 'ImpEp', name: 'Total Import Active Energy', unit: 'kWh', div: 1 },
+        ],
+      },
+      custom: {
+        device: '',
+        metrics: [],
+      },
+  	};
+
+    function metricsListInit($list, metrics) {
+  	  $list.editableList({
+  	  	addButton: "Add keys",
+  	  	removable: true,
+  	  	sortable: true,
+  	  	height: 260,
+  	  	header: $('<div/>').css({ display: 'flex' }).append(
+  	  		$('<div/>').css({ width: '18%', display: 'inline-block', fontWeight: 'bold' }).text('Key'),
+  	  		$('<div/>').css({ width: '37%', display: 'inline-block', fontWeight: 'bold' }).text('Name'),
+  	  		$('<div/>').css({ width: '18%', display: 'inline-block', fontWeight: 'bold' }).text('Unit'),
+  	  		$('<div/>').css({ width: '18%', display: 'inline-block', fontWeight: 'bold' }).text('Div'),
+  	  	),
+        addItem: function (container, _index, data) {
+          data = data || {};
+          var row = $('<div/>').css({ display: 'flex', gap: '4px' }).appendTo(container);
+
+          var keyInput = $('<input/>', {
+            type: 'text',
+            placeholder: 'Exp: Ua',
+          })
+            .css({ width: '18%' })
+            .val(data.key || '')
+            .appendTo(row);
+
+          var nameInput = $('<input/>', {
+            type: 'text',
+            placeholder: 'Exp: Phase A Voltage',
+          })
+            .css({ width: '38%' })
+            .val(data.name || '')
+            .appendTo(row);
+
+          var unitInput = $('<input/>', {
+            type: 'text',
+            placeholder: 'Exp: V, A, kW...',
+          })
+            .css({ width: '18%' })
+            .val(data.unit || '')
+            .appendTo(row);
+
+          var divInput = $('<input/>', {
+            type: 'number',
+            placeholder: 'Exp: 1000',
+          })
+            .css({ width: '18%' })
+            .val(data.div !== undefined && data.div !== null ? data.div : 1)
+            .appendTo(row);
+
+          container.data('_inputs', {
+            keyInput: keyInput,
+            nameInput: nameInput,
+            unitInput: unitInput,
+            divInput: divInput,
+          });
+        },
+  	  });
+
+      (metrics || []).forEach(function (m) {
+        $list.editableList('addItem', m);
+      });
+    }
+
+    function metricsListGetValue($list) {
+      var result = [];
+      $list.editableList('items').each(function () {
+        var inputs = $(this).data('_inputs');
+        if (!inputs) return;
+        var key = (inputs.keyInput.val() || '').trim();
+        if (!key) return;
+        result.push({
+          key: key,
+          name: (inputs.nameInput.val() || '').trim() || key,
+          unit: (inputs.unitInput.val() || '').trim(),
+          div: parseFloat(inputs.divInput.val()) || 1,
+        });
+      });
+      return result;
+    }
+
+    RED.nodes.registerType('dongtien-insert', {
+      category: 'Dong Tien',
+      color: '#927FBF',
+      defaults: {
+        name: { value: '' },
+        deviceType: { value: 'ilec_mfm300' },
+        factory: { value: 'Dong Tien Paper Long An', required: true },
+        transformer: { value: '3000KVA' },
+        parentSystem: { value: 'MCC XEO' },
+        subSystem: { value: '' },
+        device: { value: '' },
+        device: { value: 'iLEC MFM300', required: true },
+        measurement: { value: 'electric_measurement', required: true },
+        db: { value: 'dongtien', required: true },
+        precision: { value: 'ns' },
+        shiftVar: { value: 'shift' },
+        metrics: { value: DONGTIEN_DEVICE_TEMPLATES.ilec_mfm300:.metrics },
+      },
+      inputs: 1,
+      outputs: 1,
+      icon: 'font-awesome/fa-bolt',
+      paletteLabel: 'dongtien-insert',
+      label: function() {
+        return this.name || this.device || 'dongtien-insert';
+      },
+      labelStyle: function() {
+        return this.name ? 'node_label_italic': '';
+      },
+      oneditprepare: function () {
+        var node = this;
+        var $list = $('#node-input-metrics-container');
+
+        metricsListInit($list, node.metrics);
+
+        $('#node-input-deviceType').on('change', function () {
+          var type = $(this).val();
+          if (type === 'custom') return;
+          var tpl = DONGTIEN_DEVICE_TEMPLATES[type];
+          if (tpl && !$('#node-input-device').val()) {
+            $('#node-input-device').val(tpl.device);
+          }
+        });
+
+        $('#node-load-default-metrics').on('click', function() {
+          var type = $('#node-input-deviceType').val();
+          var tpl = DONGTIEN_DEVICE_TEMPLATES[type];
+          if (!tpl) return;
+
+          if (
+            $list.editableList('length') > 0 &&
+            !window.confirm(
+              'This operation will replace the entire current mapping table with the default one."' +
+              type +
+              '". Continue?',
+            )
+          ) {
+            return;
+          }
+
+          $list.editableList('empty');
+          tpl.metrics.forEach(function (m) {
+            $list.editableList('addItem',m);
+          });
+          if (tpl.device) {
+            $('#node-input-device').val(tpl.device);
+          }
+        });
+      },
+      oneditsave: function () {
+        var $list = $('#node-input-metrics-container');
+        this.metrics = metricsListGetValue($list);
+      }
+    });
+  })
+</script>
+
+<script type="text/html" data-template-name="dongtien-insert">
+  <div class="form-row">
+    <label for="node-input-name"
+      ><i class="fa fa-tag"></i> Node input name</label
+    >
+    <input
+      type="text"
+      id="node-input-name"
+      placeholder="VD: Insert iLEC MFM300"
+    />
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-deviceType"
+      ><i class="fa fa-microchip"></i>Meter Type</label
+    >
+    <select id="node-input-deviceType" style="width: 60%">
+      <option value="ilec_mfm300">iLEC MFM300</option>
+      <option value="arcel_acm961_e4">Arcel ACM 96L E4</option>
+      <option value="chint_pd7777">CHINT PD7777</option>
+      <option value="custom">Customize...</option>
+    </select>
+    <button
+      type="button"
+      id="node-load-default-metrics"
+      class="red-ui-button"
+      style="margin-left: 6px"
+    >
+      <i class="fa fa-download"></i> Load default
+    </button>
+  </div>
+
+  <div class="form-tips">
+    <i class="fa fa-info-circle"></i> Press <b>Load default</b> to quickly
+    populate the key/name/unit/div mapping table based on the selected meter
+    type. You can still freely edit, add, or delete entries later.
+  </div>
+  <hr />
+
+  <div class="form-row">
+    <label for="node-input-device"
+      ><i class="fa fa-tag"></i> Tag "device"</label
+    >
+    <input type="text" id="node-input-device" placeholder="Exp: iLEC MFM300" />
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-factory"
+      ><i class="fa fa-industry"></i> Tag "factory"</label
+    >
+    <input
+      type="text"
+      id="node-input-factory"
+      placeholder="Ex: Dong Tien Paper Long An"
+    />
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-transformer"
+      ><i class="fa fa-bolt"></i> Tag "transformer"</label
+    >
+    <input type="text" id="node-input-transformer" placeholder="Ex: 3000KVA" />
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-parentSystem"
+      ><i class="fa fa-sitemap"></i> Tag "parent_system"</label
+    >
+    <input type="text" id="node-input-parentSystem" placeholder="Ex: MCC XEO" />
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-subSystem"
+      ><i class="fa fa-cogs"></i> Tag "sub_system"</label
+    >
+    <input type="text" id="node-input-subSystem" placeholder="Ex: MCC_1.3" />
+  </div>
+
+  <hr />
+
+  <div class="form-row">
+    <label for="node-input-measurement">
+      <i class="fa fa-database"></i> Measurement
+    </label>
+    <input
+      type="text"
+      id="node-input-measurement"
+      placeholder="electric_measurement"
+    />
+  </div>
+
+  <div class="form-row">
+    <label form="node-input-precision">
+      <i class="fa fa-clock-o"></i> Precision (msg.precision)</label>
+    </label>
+    <select id="node-input-precision" style="width: 60%">
+      <option value="ns">ns</option>
+      <option value="us">us</option>
+      <option value="ms">ms</option>
+      <option value="s">s</option>
+    </select>
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-shiftVar">
+      <i class="fa fa-globe"></i> Global var "shift"
+    </label>
+    <input type="text" id="node-input-shiftVar" placeholder="shift" />
+  </div>
+</script>
+
+<script type="text/html" data-help-name="dongtien-insert">
+  <p>
+    A shared node for electricity meters (iLEC MFM300, Arcel ACM 96L E4, CHINT
+    PD7777, or other custom models). It receives raw data from PLC/Modbus, maps
+    it to configured variable names, units, and scales; attaches device metadata
+    (factory, transformer, parent_system, sub_system, device, shift) as tags;
+    and outputs the result in InfluxDB Line Protocol format.
+  </p>
+
+  <h3>Input</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>
+      Format
+      <code>{ [machine_key]: [{ts, value: {Ua: 220000, Ib: 1500, ...}}] }</code
+      >. Node take <code>machine_key</code> the first element in the payload to
+      be used as a tag <code>machine</code>.
+    </dd>
+  </dl>
+
+  <h3>Output</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">string</span></dt>
+    <dd>
+      Line Protocol string, where each line corresponds to a metric that matches
+      the configured mapping table.
+    </dd>
+    <dt>db <span class="property-type">string</span></dt>
+    <dd>
+      The InfluxDB database name, used by the downstream data writing node.
+    </dd>
+    <dt>precision <span class="property-type">string</span></dt>
+    <dd>The timestamp precision (default is "ns").</dd>
+  </dl>
+
+  <h3>Configuration</h3>
+  <ul>
+    <li>
+      <b>Device Type</b>: Select from pre-defined mapping templates (iLEC MFM300
+      / Arcel ACM 96L E4 / CHINT PD7777) or choose "custom".
+    </li>
+    <li>
+      <b>Load Defaults</b>: Automatically populates the mapping table based on
+      the selected device type.
+    </li>
+    <li>
+      <b>Device/Factory/Transformer/Parent System/Sub-system Tags</b>: Metadata
+      for device hierarchy, attached to every data point.
+    </li>
+    <li>
+      <b>Metric Mapping</b>: A 4-column table including: Key (from raw
+      <code>values</code>), Display Name (<code>name</code> tag), Unit (<code
+        >unit</code
+      >
+      tag), and Divider (value to divide the raw input by to get the final
+      <code>value</code> field).
+    </li>
+    <li>
+      <b>Global var "shift"</b>: The name of the global context variable
+      containing the current work shift (default is <code>shift</code>).
+    </li>
+  </ul>
+</script>

@@ -1,4 +1,7 @@
 {
+  "name": "node-red-contrib-dongtien",
+  "version": "0.0.1",
+  "description": "A shared node for electricity meters",
   "devDependencies": {
     "@commitlint/cli": "^19.8.0",
     "@commitlint/config-conventional": "^19.8.0",
@@ -14,7 +17,29 @@
     "typescript-eslint": "^8.62.1"
   },
   "scripts": {
+    "build": "rm -r dist && npm run build:cjs",
+    "build:cjs": "tsc --module commonjs --outDir dist && cp src/*.html dist/",
     "test": "eslint . --ignore-pattern dist/",
-    "prepare": "husky"
-  }
+    "prepare": "if [ -d .git ]; then husky; fi"
+  },
+  "node-red": {
+    "nodes": {
+      "dongtien-insert": "dist/node.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chanelcolgate/node-red-contrib-dongtien.git"
+  },
+  "keywords": [
+    "node-red",
+    "chanelcolgate"
+  ],
+  "author": "chanelcolgate",
+  "files": ["dist/"],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/chanelcolgate/node-red-contrib-dongtien/issues"
+  },
+  "homepage": "https://github.com/chanelcolgate/node-red-contrib-dongtien#readme"
 }
