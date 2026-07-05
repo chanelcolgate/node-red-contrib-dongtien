@@ -169,18 +169,150 @@
           },
         ],
       },
+      vibration_temp: {
+        device: 'Vibration & Temperature Sensor',
+        metrics: [
+          { key: 'temperature', name: 'Temperature', unit: '°C', div: 10 },
+          { key: 'x-sped', name: 'Velocity X', unit: 'mm/s', div: 10 },
+          { key: 'y-sped', name: 'Velocity Y', unit: 'mm/s', div: 10 },
+          { key: 'z-sped', name: 'Velocity Z', unit: 'mm/s', div: 10 },
+          { key: 'x-disp', name: 'Displacement X', unit: 'um', div: 1 },
+          { key: 'y-disp', name: 'Displacement Y', unit: 'um', div: 1 },
+          { key: 'z-disp', name: 'Displacement Z', unit: 'um', div: 1 },
+          { key: 'x-accel', name: 'Acceleration X', unit: 'g', div: 100 },
+          { key: 'y-accel', name: 'Acceleration Y', unit: 'g', div: 100 },
+          { key: 'z-accel', name: 'Acceleration Z', unit: 'g', div: 100 },
+          { key: 'x-freq', name: 'Frequency X', unit: 'Hz', div: 1 },
+          { key: 'y-freq', name: 'Frequency Y', unit: 'Hz', div: 1 },
+          { key: 'z-freq', name: 'Frequency Z', unit: 'Hz', div: 1 },
+        ],
+      },
       custom: {
         device: '',
         metrics: [],
       },
     };
 
+    function csvEscapeField(value) {
+      var s = value === undefined || value === null ? '' : String(value);
+      if (/[",\n]/.test(s)) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+
+    function metricsToCsv(metrics) {
+      var lines = ['key,name,unit,div'];
+      (metrics || []).forEach(function (m) {
+        lines.push(
+          [
+            csvEscapeField(m.key),
+            csvEscapeField(m.name),
+            csvEscapeField(m.unit),
+            csvEscapeField(m.div),
+          ].join(','),
+        );
+      });
+      return lines.join('\n');
+    }
+
+    function parseCsv(text) {
+      var rows = [];
+      var row = [];
+      var field = '';
+      var inQuotes = false;
+
+      for (var i = 0; i < text.length; i++) {
+        var c = text[i];
+        if (inQuotes) {
+          if (c === '"') {
+            if (text[i + 1] === '"') {
+              field += '"';
+              i++;
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            field += c;
+          }
+        } else if (c === '"') {
+          inQuotes = true;
+        } else if (c === ',') {
+          row.push(field);
+          field = '';
+        } else if (c === '\n' || c === '\r') {
+          if (c === '\r' && text[i + 1] === '\n') i++;
+          row.push(field);
+          row.push(row);
+          row = [];
+          field = '';
+        } else {
+          field += c;
+        }
+      }
+      if (field.length > 0 || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+      }
+      return rows.filter(function (r) {
+        return r.length > 1 || (r.length === 1 && r[0] !== '');
+      });
+    }
+
+    function metricsFromCsv(text) {
+      var rows = parseCsv(text);
+      if (rows.length === 0) return [];
+
+      var startIdx = 0;
+      var header = rows[0].map(function (h) {
+        return h.trim().toLowerCase();
+      });
+      var isHeader =
+        header.indexOf('key') !== -1 && header.indexOf('name') !== -1;
+      var colIdx = { key: 0, name: 1, unit: 2, div: 3 };
+      if (isHeader) {
+        startIdx = 1;
+        colIdx = {
+          key: header.indexOf('key'),
+          name: header.indexOf('name'),
+          unit: header.indexOf('unit')
+          div: header.indexOf('div'),
+        };
+      }
+
+      var result = [];
+      for (var i = startIdx; i < rows.length i++) {
+        var r = rows[i];
+        var key = (r[colIdx.key] || '').trim();
+        if (!key) continue;
+        result.push({
+          key: key,
+          name: (r[colIdx.name] || '').trim() || key,
+          unit: (r[colIdx.unit] || '').trim(),
+          div: parseFloat(r[colIdx.div]) || 1,
+        });
+      }
+      return result;
+    }
+
+    function downloadTextFile(filename, text) {
+      var blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     function metricsListInit($list, metrics) {
       $list.editableList({
-        addButton: 'Add keys',
+        addButton: 'Add rows',
         removable: true,
         sortable: true,
-        height: 260,
+        height: 300,
         header: $('<div/>')
           .css({ display: 'flex' })
           .append(
@@ -245,6 +377,7 @@
 
           var divInput = $('<input/>', {
             type: 'number',
+            step: 'any',
             placeholder: 'Exp: 1000',
           })
             .css({ width: '18%' })
@@ -282,12 +415,96 @@
       return result;
     }
 
+    function metricsListReplace($list, metrics) {
+      $list.editableList('empty');
+      (metrics || []).forEach(function (m) {
+        $list.editableList('addItem', m);
+      });
+    }
+
+    RED.nodes.registerType('dongtien-meter-config', {
+      category: 'config',
+      defaults: {
+        name: { value: '', required: true },
+      },
+      device: { value: '' },
+      metrics: { value: [] },
+      label: function () {
+        return this.name || this.device || 'meter-config';
+      },
+      oneditprepare: function () {
+        var $list = $('#node-config-input-metrics-container');
+        metricsListInit($list, this.metrics);
+
+        // Preset
+        $('.dongtien-preset-btn').on('click', function() {
+          var key = $(this).data('preset');
+          var tpl = DONGTIEN_DEVICE_TEMPLATES[key];
+          f (!tpl) return;
+
+          if ($list.editableList('length') > 0 && !window.confirm('This operation will replace the entire current mapping table with the defualt one.')) {
+            return;
+          }
+
+          metricsListReplace($list, tpl.metrics);
+          if (tpl.device && !$('#node-config-input-device').val()) {
+            $('#node-config-input-device').val(tpl.device);
+          }
+        });
+
+        // Export CSV
+        $('#node-config-export-csv').on('click', function () {
+          var metrics = metricsListGetValue($list);
+          var name = $('#node-config-input-name').val() || 'meter-config';
+          downloadTextFile(
+            name.replace(/[^\w-]+/g, '_') + '.csv',
+            metricsToCsv(metrics)
+          );
+        });
+
+        // Import CSV
+        $('#node-config-import-csv-file').on('change', function (evt) {
+          var file = evt.target.files && evt.target.files[0];
+          if (!file) return;
+
+          var reader = new FileReader();
+          reader.onload = function (e) {
+            try {
+              var metrics = metricsFromCsv(String(e.target.result));
+              if (metrics.length === 0) {
+                window.alert('No valid data rows could be read from the CSV file.');
+                return;
+              }
+
+              if ($list.editableList('length') > 0 && !window.confirm('The import will replace the entire current mapping table with ' + metrics.length + ' lines from the CSV file. Continue?')) {
+                return;
+              }
+              metricsListReplace($list, metrics);
+            } catch (err) {
+              window.alert('Error reading CSV file: ' + err.message);
+            }
+          };
+
+          reader.readAsText(file);
+          $(this).val('');
+        });
+      },
+      oneditsave: function () {
+        var $list = $('#node-config-input-metrics-container');
+        this.metrics = metricsListGetValue($list);
+      },
+    });
+
     RED.nodes.registerType('dongtien-insert', {
       category: 'Dong Tien',
       color: '#927FBF',
       defaults: {
         name: { value: '' },
-        deviceType: { value: 'ilec_mfm300' },
+        meterConfig: {
+          value: '',
+          type: 'dongtien-meter-config',
+          required: true,
+        },
         factory: { value: 'Dong Tien Paper Long An', required: true },
         transformer: { value: '3000KVA' },
         parentSystem: { value: 'MCC XEO' },
@@ -298,95 +515,76 @@
         db: { value: 'dongtien', required: true },
         precision: { value: 'ns' },
         shiftVar: { value: 'shift' },
-        metrics: { value: DONGTIEN_DEVICE_TEMPLATES.ilec_mfm300.metrics },
       },
       inputs: 1,
       outputs: 1,
       icon: 'font-awesome/fa-bolt',
       paletteLabel: 'dongtien-insert',
       label: function () {
-        return this.name || this.device || 'dongtien-insert';
+        if (this.name) return this.name;
+        var cfg = RED.nodes.node(this.meterConfig);
+        return (cfg && (cfg.name || cfg.device)) || 'dongtien-insert';
       },
       labelStyle: function () {
         return this.name ? 'node_label_italic' : '';
-      },
-      oneditprepare: function () {
-        var node = this;
-        var $list = $('#node-input-metrics-container');
-
-        metricsListInit($list, node.metrics);
-
-        $('#node-input-deviceType').on('change', function () {
-          var type = $(this).val();
-          if (type === 'custom') return;
-          var tpl = DONGTIEN_DEVICE_TEMPLATES[type];
-          if (tpl && !$('#node-input-device').val()) {
-            $('#node-input-device').val(tpl.device);
-          }
-        });
-
-        $('#node-load-default-metrics').on('click', function () {
-          var type = $('#node-input-deviceType').val();
-          var tpl = DONGTIEN_DEVICE_TEMPLATES[type];
-          if (!tpl) return;
-
-          if (
-            $list.editableList('length') > 0 &&
-            !window.confirm(
-              'This operation will replace the entire current mapping table with the default one."' +
-                type +
-                '". Continue?',
-            )
-          ) {
-            return;
-          }
-
-          $list.editableList('empty');
-          tpl.metrics.forEach(function (m) {
-            $list.editableList('addItem', m);
-          });
-          if (tpl.device) {
-            $('#node-input-device').val(tpl.device);
-          }
-        });
-      },
-      oneditsave: function () {
-        var $list = $('#node-input-metrics-container');
-        this.metrics = metricsListGetValue($list);
       },
     });
   })();
 </script>
 
-<script type="text/html" data-template-name="dongtien-insert">
+<script type="text/html" data-template-name="dongtien-meter-config">
   <div class="form-row">
-    <label for="node-input-name"
-      ><i class="fa fa-tag"></i> Node input name</label
-    >
+    <label for="node-config-input-name">
+      <i class="fa fa-tag"></i> Template name
+    </label>
     <input
       type="text"
-      id="node-input-name"
-      placeholder="VD: Insert iLEC MFM300"
+      id="node-config-input-name"
+      placeholder="ex: iLEC MFM300"
     />
   </div>
 
   <div class="form-row">
-    <label for="node-input-deviceType"
-      ><i class="fa fa-microchip"></i>Meter Type</label
+    <label for="node-config-input-device"
+      ><i class="fa fa-microchip"></i>Tag "device"</label
     >
-    <select id="node-input-deviceType" style="width: 60%">
-      <option value="ilec_mfm300">iLEC MFM300</option>
-      <option value="arcel_acm961_e4">Arcel ACM 96L E4</option>
-      <option value="chint_pd7777">CHINT PD7777</option>
-      <option value="custom">Customize...</option>
-    </select>
+    <input
+      type="text"
+      id="node-config-input-device"
+      placeholder="ex: iLEC MFM300"
+    />
+  </div>
+  <div class="form-row">
+    <label style="width: auto">
+      <i class="fa fa-magic"></i> Preset
+    </label>
     <button
       type="button"
-      id="node-load-default-metrics"
-      class="red-ui-button"
-      style="margin-left: 6px"
+      class="red-ui-button dongtien-preset-btn"
+      data-preset="ilec_mfm300"
     >
-      <i class="fa fa-download"></i> Load default
+      iLEC MFM300
+    </button>
+    <button
+      type="button"
+      class="red-ui-button dongtien-preset-btn"
+      data-preset="arcel_acm961_e4"
+    >
+      arcel ACM 96L E4
+    </button>
+    <button
+      type="button"
+      class="red-ui-button dongtien-preset-btn"
+      data-preset="chint_pd7777"
+    >
+      CHINT PD7777
+    </button>
+    <button
+      type="button"
+      class="red-ui-button dongtien-preset-btn"
+      data-preset="vibration_temp"
+    >
+      Vibration Temp
     </button>
   </div>
 
@@ -398,9 +596,26 @@
   <hr />
 
   <div class="form-row">
-    <label for="node-input-device"
-      ><i class="fa fa-tag"></i> Tag "device"</label
+    <button type="button" class="red-ui-button" id="node-config-add-row">
+      <i class="fa fa-plus"></i> Add rows
+    </button>
+    <button type="button" class="red-ui-button" id="node-config-export-csv">
+      <i class="fa fa-download"></i> Export CSV
+    </button>
+    <label
+      class="red-ui-button"
+      for="node-config-import-csv-file"
+      style="display: inline-block"
     >
+      <i class="fa fa-upload"></i> Import CSV
+    </label>
+    <input
+      type="file"
+      id="node-config-import-csv-file"
+      accept=".csv"
+      style="display: none"
+    />
+  </div>
     <input type="text" id="node-input-device" placeholder="Exp: iLEC MFM300" />
   </div>
 
