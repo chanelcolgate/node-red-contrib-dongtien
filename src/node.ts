@@ -1,10 +1,15 @@
 import { NodeAPI, Node, NodeDef, NodeMessage } from 'node-red';
 
-type DongTienInputListener = (
-  msg: NodeMessage & { payload: unknown; db?: string; precision?: string },
-  send: (msg: NodeMessage) => void,
-  done: (err?: Error | null) => void,
-) => void;
+/**
+ * ============================================================================
+ * dongtien-meter-config  (config node)
+ * ----------------------------------------------------------------------------
+ * Chứa bảng mapping "biến -> tên/đơn vị/độ chia" cho MỘT loại đồng hồ/cảm biến
+ * (VD: iLEC MFM300, Arcel ACM 96L E4, CHINT PD7777, cảm biến rung...).
+ * Được tạo 1 lần, dùng chung cho nhiều node "dongtien-insert" khác nhau (giống
+ * cách 1 "S7 Endpoint" được nhiều node S7 dùng chung).
+ * ============================================================================
+ */
 
 export interface MetricDefinition {
   key: string;
@@ -13,34 +18,55 @@ export interface MetricDefinition {
   div: number;
 }
 
-export interface DongTienInsertNodeDef extends NodeDef {
-  deviceType: string;
-  factory: string;
-  transformer: string;
-  parentSystem: string;
-  subSystem: string;
+export interface DongtienMeterConfigDef extends NodeDef {
   device: string;
-  measurement: string;
-  db: string;
-  precision: string;
-  shiftVar: string;
   metrics: MetricDefinition[];
 }
 
-interface DongTienInsertNode extends Node {
-  deviceType: string;
+export interface DongtienMeterConfigNode extends Node {
+  device: string;
+  metricsMap: Record<string, MetricDefinition>;
+}
+
+/**
+ * ============================================================================
+ * dongtien-insert (node xử lý chính)
+ * ----------------------------------------------------------------------------
+ * Nhận dữ liệu thô, tra cứu bảng mapping từ config node đã chọn, xuất ra
+ * InfluxDB Line Protocol.
+ * ============================================================================
+ */
+
+export interface DongtienInsertNodeDef extends NodeDef {
+  meterConfig: string;
   factory: string;
   transformer: string;
   parentSystem: string;
   subSystem: string;
-  device: string;
   measurement: string;
   db: string;
   precision: string;
   shiftVar: string;
-  metricsMap: Record<string, MetricDefinition>;
 }
 
+interface DongtienInsertNode extends Node {
+  factory: string;
+  transformer: string;
+  parentSystem: string;
+  subSystem: string;
+  measurement: string;
+  db: string;
+  precision: string;
+  shiftVar: string;
+}
+
+type DongtienInputListener = (
+  msg: NodeMessage & { payload: unknown; db?: string; precision?: string },
+  send: (msg: NodeMessage) => void,
+  done: (err?: Error | null) => void,
+) => void;
+
+/** Escape ký tự đặc biệt cho InfluxDB Line Protocol. */
 function escapeString(value: unknown): string {
   if (value === undefined || value === null || value === '') return 'Unknown';
   return String(value)
@@ -49,48 +75,78 @@ function escapeString(value: unknown): string {
     .replace(/=/g, '\\=');
 }
 
+/** Chuẩn hoá danh sách metrics thô (từ editor) thành map tra cứu O(1). */
+function buildMetricsMap(
+  rawMetrics: MetricDefinition[] | undefined,
+): Record<string, MetricDefinition> {
+  const map: Record<string, MetricDefinition> = {};
+  if (!Array.isArray(rawMetrics)) return map;
+  for (const m of rawMetrics) {
+    if (!m || !m.key) continue;
+    const div = Number(m.div);
+    map[m.key] = {
+      key: m.key,
+      name: m.name && m.name.trim() ? m.name : m.key,
+      unit: m.unit || '',
+      div: Number.isFinite(div) && div !== 0 ? div : 1,
+    };
+  }
+  return map;
+}
+
 module.exports = function (RED: NodeAPI) {
-  function DongTienInsertNode(
-    this: DongTienInsertNode,
-    config: DongTienInsertNodeDef,
+  // --------------------------------------------------------------------
+  // Config node: dongtien-meter-config
+  // --------------------------------------------------------------------
+  function DongtienMeterConfigNode(
+    this: DongtienMeterConfigNode,
+    config: DongtienMeterConfigDef,
+  ) {
+    RED.nodes.createNode(this, config);
+    this.device = config.device || '';
+    this.metricsMap = buildMetricsMap(config.metrics);
+  }
+  RED.nodes.registerType(
+    'dongtien-meter-config',
+    DongtienMeterConfigNode as never,
+  );
+
+  // --------------------------------------------------------------------
+  // Node chính: dongtien-insert
+  // --------------------------------------------------------------------
+  function DongtienInsertNode(
+    this: DongtienInsertNode,
+    config: DongtienInsertNodeDef,
   ) {
     RED.nodes.createNode(this, config);
     const node = this;
 
-    node.deviceType = config.deviceType || 'custom';
     node.factory = config.factory || '';
     node.transformer = config.transformer || '';
     node.parentSystem = config.parentSystem || '';
     node.subSystem = config.subSystem || '';
-    node.device = config.device || '';
     node.measurement = config.measurement || 'electric_measurement';
     node.db = config.db || 'dongtien';
     node.precision = config.precision || 'ns';
     node.shiftVar = config.shiftVar || 'shift';
 
-    const rawMetrics: MetricDefinition[] = Array.isArray(config.metrics)
-      ? config.metrics
-      : [];
+    const meterConfigNode = RED.nodes.getNode(
+      config.meterConfig,
+    ) as DongtienMeterConfigNode | null;
 
-    node.metricsMap = {};
-    for (const m of rawMetrics) {
-      if (!m || !m.key) continue;
-      const div = Number(m.div);
-      node.metricsMap[m.key] = {
-        key: m.key,
-        name: m.name && m.name.trim() ? m.name : m.key,
-        unit: m.unit || '',
-        div: Number.isFinite(div) && div !== 0 ? div : 1,
-      };
-    }
-
-    if (Object.keys(node.metricsMap).length === 0) {
+    if (!meterConfigNode) {
       node.warn(
-        'No metrics configured (metrics are empty). The node will not output any data.',
+        'Chưa chọn "Meter Config" (hoặc config đã bị xoá). Node sẽ không xuất ra dữ liệu nào.',
       );
+      node.status({ fill: 'red', shape: 'ring', text: 'thiếu meter config' });
+    } else if (Object.keys(meterConfigNode.metricsMap).length === 0) {
+      node.warn(
+        `Meter Config "${meterConfigNode.name || meterConfigNode.device}" chưa có biến nào (metrics rỗng).`,
+      );
+      node.status({ fill: 'yellow', shape: 'ring', text: 'metrics rỗng' });
     }
 
-    const onInput: DongTienInputListener = function (msg, send, done) {
+    const onInput: DongtienInputListener = function (msg, send, done) {
       send = send || ((m: NodeMessage) => node.send(m));
       done =
         done ||
@@ -99,6 +155,15 @@ module.exports = function (RED: NodeAPI) {
         });
 
       try {
+        if (!meterConfigNode) {
+          node.status({
+            fill: 'red',
+            shape: 'ring',
+            text: 'thiếu meter config',
+          });
+          return done();
+        }
+
         const shift =
           (node.context().global.get(node.shiftVar) as string) || 'Unassigned';
 
@@ -113,7 +178,7 @@ module.exports = function (RED: NodeAPI) {
           node.status({
             fill: 'yellow',
             shape: 'ring',
-            text: 'Unvalid payload',
+            text: 'payload không hợp lệ',
           });
           return done();
         }
@@ -125,7 +190,7 @@ module.exports = function (RED: NodeAPI) {
           node.status({
             fill: 'yellow',
             shape: 'ring',
-            text: "Don't have machine_key",
+            text: 'không có machine_key',
           });
           return done();
         }
@@ -136,7 +201,7 @@ module.exports = function (RED: NodeAPI) {
         const lines: string[] = [];
 
         for (const key of Object.keys(rawData)) {
-          const metric = node.metricsMap[key];
+          const metric = meterConfigNode.metricsMap[key];
           if (!metric) continue;
 
           const fieldValue = Number(rawData[key]) / metric.div;
@@ -148,7 +213,7 @@ module.exports = function (RED: NodeAPI) {
             `parent_system=${escapeString(node.parentSystem)}`,
             `sub_system=${escapeString(node.subSystem)}`,
             `machine=${escapeString(machineKey)}`,
-            `device=${escapeString(node.device)}`,
+            `device=${escapeString(meterConfigNode.device)}`,
             `name=${escapeString(metric.name)}`,
             `unit=${escapeString(metric.unit)}`,
             `shift=${escapeString(shift)}`,
@@ -163,7 +228,7 @@ module.exports = function (RED: NodeAPI) {
           node.status({
             fill: 'yellow',
             shape: 'ring',
-            text: 'No variable matches the configuration.',
+            text: 'không có biến nào khớp cấu hình',
           });
           return done();
         }
@@ -175,18 +240,18 @@ module.exports = function (RED: NodeAPI) {
         node.status({
           fill: 'green',
           shape: 'dot',
-          text: `${lines.length} data point`,
+          text: `${lines.length} điểm dữ liệu`,
         });
 
         send(msg);
         done();
       } catch (err) {
-        node.status({ fill: 'red', shape: 'ring', text: 'processing error' });
+        node.status({ fill: 'red', shape: 'ring', text: 'lỗi xử lý' });
         done(err as Error);
       }
     };
 
-    (node.on as (event: string, listener: DongTienInputListener) => Node).call(
+    (node.on as (event: string, listener: DongtienInputListener) => Node).call(
       node,
       'input',
       onInput,
@@ -197,5 +262,5 @@ module.exports = function (RED: NodeAPI) {
     });
   }
 
-  RED.nodes.registerType('dongtien-insert', DongTienInsertNode as never);
+  RED.nodes.registerType('dongtien-insert', DongtienInsertNode as never);
 };

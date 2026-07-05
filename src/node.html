@@ -1,6 +1,13 @@
 <script type="text/javascript">
   (function () {
-    var DONGTIEN_DEVICE_TEMPLATES = {
+    // ------------------------------------------------------------------
+    // Preset mẫu cho từng loại đồng hồ / cảm biến.
+    // LƯU Ý: Preset "Cảm biến nhiệt độ - rung" dùng hệ số chia (div) là GIÁ TRỊ
+    // GIẢ ĐỊNH (đoán từ ví dụ dữ liệu thô), KHÔNG phải số liệu chính thức từ
+    // datasheet. Sau khi nạp preset này, hãy tự kiểm tra lại và chỉnh "Div"
+    // cho khớp với tài liệu kỹ thuật thật của cảm biến trước khi dùng.
+    // ------------------------------------------------------------------
+    var DONGTIEN_PRESETS = {
       ilec_mfm300: {
         device: 'iLEC MFM300',
         metrics: [
@@ -169,18 +176,156 @@
           },
         ],
       },
-      custom: {
-        device: '',
-        metrics: [],
+      // Preset THAM KHẢO cho cảm biến nhiệt độ - rung 3 trục.
+      // div là GIÁ TRỊ GIẢ ĐỊNH, hãy chỉnh lại theo datasheet thực tế.
+      vibration_temp: {
+        device: 'Vibration & Temperature Sensor',
+        metrics: [
+          { key: 'temperature', name: 'Temperature', unit: '°C', div: 10 },
+          { key: 'x-sped', name: 'Velocity X', unit: 'mm/s', div: 10 },
+          { key: 'y-sped', name: 'Velocity Y', unit: 'mm/s', div: 10 },
+          { key: 'z-sped', name: 'Velocity Z', unit: 'mm/s', div: 10 },
+          { key: 'x-disp', name: 'Displacement X', unit: 'um', div: 1 },
+          { key: 'y-disp', name: 'Displacement Y', unit: 'um', div: 1 },
+          { key: 'z-disp', name: 'Displacement Z', unit: 'um', div: 1 },
+          { key: 'x-accel', name: 'Acceleration X', unit: 'g', div: 100 },
+          { key: 'y-accel', name: 'Acceleration Y', unit: 'g', div: 100 },
+          { key: 'z-accel', name: 'Acceleration Z', unit: 'g', div: 100 },
+          { key: 'x-freq', name: 'Frequency X', unit: 'Hz', div: 1 },
+          { key: 'y-freq', name: 'Frequency Y', unit: 'Hz', div: 1 },
+          { key: 'z-freq', name: 'Frequency Z', unit: 'Hz', div: 1 },
+        ],
       },
+      custom: { device: '', metrics: [] },
     };
 
+    // ------------------------------------------------------------------
+    // CSV helpers (không phụ thuộc thư viện ngoài)
+    // ------------------------------------------------------------------
+    function csvEscapeField(value) {
+      var s = value === undefined || value === null ? '' : String(value);
+      if (/[",\n]/.test(s)) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+
+    function metricsToCsv(metrics) {
+      var lines = ['key,name,unit,div'];
+      (metrics || []).forEach(function (m) {
+        lines.push(
+          [
+            csvEscapeField(m.key),
+            csvEscapeField(m.name),
+            csvEscapeField(m.unit),
+            csvEscapeField(m.div),
+          ].join(','),
+        );
+      });
+      return lines.join('\n');
+    }
+
+    // Parser CSV đơn giản, hỗ trợ field có dấu ngoặc kép chứa dấu phẩy/xuống dòng
+    function parseCsv(text) {
+      var rows = [];
+      var row = [];
+      var field = '';
+      var inQuotes = false;
+
+      for (var i = 0; i < text.length; i++) {
+        var c = text[i];
+        if (inQuotes) {
+          if (c === '"') {
+            if (text[i + 1] === '"') {
+              field += '"';
+              i++;
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            field += c;
+          }
+        } else if (c === '"') {
+          inQuotes = true;
+        } else if (c === ',') {
+          row.push(field);
+          field = '';
+        } else if (c === '\n' || c === '\r') {
+          if (c === '\r' && text[i + 1] === '\n') i++;
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = '';
+        } else {
+          field += c;
+        }
+      }
+      if (field.length > 0 || row.length > 0) {
+        row.push(field);
+        rows.push(row);
+      }
+      return rows.filter(function (r) {
+        return r.length > 1 || (r.length === 1 && r[0] !== '');
+      });
+    }
+
+    function metricsFromCsv(text) {
+      var rows = parseCsv(text);
+      if (rows.length === 0) return [];
+
+      var startIdx = 0;
+      var header = rows[0].map(function (h) {
+        return h.trim().toLowerCase();
+      });
+      var isHeader =
+        header.indexOf('key') !== -1 && header.indexOf('name') !== -1;
+      var colIdx = { key: 0, name: 1, unit: 2, div: 3 };
+      if (isHeader) {
+        startIdx = 1;
+        colIdx = {
+          key: header.indexOf('key'),
+          name: header.indexOf('name'),
+          unit: header.indexOf('unit'),
+          div: header.indexOf('div'),
+        };
+      }
+
+      var result = [];
+      for (var i = startIdx; i < rows.length; i++) {
+        var r = rows[i];
+        var key = (r[colIdx.key] || '').trim();
+        if (!key) continue;
+        result.push({
+          key: key,
+          name: (r[colIdx.name] || '').trim() || key,
+          unit: (r[colIdx.unit] || '').trim(),
+          div: parseFloat(r[colIdx.div]) || 1,
+        });
+      }
+      return result;
+    }
+
+    function downloadTextFile(filename, text) {
+      var blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // ------------------------------------------------------------------
+    // Editable list dùng chung cho bảng mapping (key/name/unit/div)
+    // ------------------------------------------------------------------
     function metricsListInit($list, metrics) {
       $list.editableList({
-        addButton: 'Add keys',
+        addButton: 'Thêm dòng',
         removable: true,
         sortable: true,
-        height: 260,
+        height: 300,
         header: $('<div/>')
           .css({ display: 'flex' })
           .append(
@@ -197,21 +342,21 @@
                 display: 'inline-block',
                 fontWeight: 'bold',
               })
-              .text('Name'),
+              .text('Tên hiển thị'),
             $('<div/>')
               .css({
                 width: '18%',
                 display: 'inline-block',
                 fontWeight: 'bold',
               })
-              .text('Unit'),
+              .text('Đơn vị'),
             $('<div/>')
               .css({
                 width: '18%',
                 display: 'inline-block',
                 fontWeight: 'bold',
               })
-              .text('Div'),
+              .text('Độ chia'),
           ),
         addItem: function (container, _index, data) {
           data = data || {};
@@ -219,17 +364,14 @@
             .css({ display: 'flex', gap: '4px' })
             .appendTo(container);
 
-          var keyInput = $('<input/>', {
-            type: 'text',
-            placeholder: 'Exp: Ua',
-          })
+          var keyInput = $('<input/>', { type: 'text', placeholder: 'VD: Ua' })
             .css({ width: '18%' })
             .val(data.key || '')
             .appendTo(row);
 
           var nameInput = $('<input/>', {
             type: 'text',
-            placeholder: 'Exp: Phase A Voltage',
+            placeholder: 'VD: Phase A Voltage',
           })
             .css({ width: '38%' })
             .val(data.name || '')
@@ -237,7 +379,7 @@
 
           var unitInput = $('<input/>', {
             type: 'text',
-            placeholder: 'Exp: V, A, kW...',
+            placeholder: 'VD: V, A, kW...',
           })
             .css({ width: '18%' })
             .val(data.unit || '')
@@ -245,7 +387,8 @@
 
           var divInput = $('<input/>', {
             type: 'number',
-            placeholder: 'Exp: 1000',
+            step: 'any',
+            placeholder: 'VD: 1000',
           })
             .css({ width: '18%' })
             .val(data.div !== undefined && data.div !== null ? data.div : 1)
@@ -282,87 +425,253 @@
       return result;
     }
 
+    function metricsListReplace($list, metrics) {
+      $list.editableList('empty');
+      (metrics || []).forEach(function (m) {
+        $list.editableList('addItem', m);
+      });
+    }
+
+    // ==================================================================
+    // Config node: dongtien-meter-config
+    // ==================================================================
+    RED.nodes.registerType('dongtien-meter-config', {
+      category: 'config',
+      defaults: {
+        name: { value: '', required: true },
+        device: { value: '' },
+        metrics: { value: [] },
+      },
+      label: function () {
+        return this.name || this.device || 'meter-config';
+      },
+      oneditprepare: function () {
+        var $list = $('#node-config-input-metrics-container');
+        metricsListInit($list, this.metrics);
+
+        // Preset
+        $('.dongtien-preset-btn').on('click', function () {
+          var key = $(this).data('preset');
+          var tpl = DONGTIEN_PRESETS[key];
+          if (!tpl) return;
+
+          if (
+            $list.editableList('length') > 0 &&
+            !window.confirm(
+              'Thao tác này sẽ thay thế toàn bộ bảng mapping hiện tại. Tiếp tục?',
+            )
+          ) {
+            return;
+          }
+
+          metricsListReplace($list, tpl.metrics);
+          if (tpl.device && !$('#node-config-input-device').val()) {
+            $('#node-config-input-device').val(tpl.device);
+          }
+        });
+
+        // Export CSV
+        $('#node-config-export-csv').on('click', function () {
+          var metrics = metricsListGetValue($list);
+          var name = $('#node-config-input-name').val() || 'meter-config';
+          downloadTextFile(
+            name.replace(/[^\w-]+/g, '_') + '.csv',
+            metricsToCsv(metrics),
+          );
+        });
+
+        // Import CSV
+        $('#node-config-import-csv-file').on('change', function (evt) {
+          var file = evt.target.files && evt.target.files[0];
+          if (!file) return;
+
+          var reader = new FileReader();
+          reader.onload = function (e) {
+            try {
+              var metrics = metricsFromCsv(String(e.target.result));
+              if (metrics.length === 0) {
+                window.alert(
+                  'Không đọc được dòng dữ liệu hợp lệ nào trong file CSV.',
+                );
+                return;
+              }
+              if (
+                $list.editableList('length') > 0 &&
+                !window.confirm(
+                  'Import sẽ thay thế toàn bộ bảng mapping hiện tại bằng ' +
+                    metrics.length +
+                    ' dòng từ file CSV. Tiếp tục?',
+                )
+              ) {
+                return;
+              }
+              metricsListReplace($list, metrics);
+            } catch (err) {
+              window.alert('Lỗi đọc file CSV: ' + err.message);
+            }
+          };
+          reader.readAsText(file);
+          $(this).val('');
+        });
+      },
+      oneditsave: function () {
+        var $list = $('#node-config-input-metrics-container');
+        this.metrics = metricsListGetValue($list);
+      },
+    });
+
+    // ==================================================================
+    // Node chính: dongtien-insert
+    // ==================================================================
     RED.nodes.registerType('dongtien-insert', {
       category: 'Dong Tien',
       color: '#927FBF',
       defaults: {
         name: { value: '' },
-        deviceType: { value: 'ilec_mfm300' },
+        meterConfig: {
+          value: '',
+          type: 'dongtien-meter-config',
+          required: true,
+        },
         factory: { value: 'Dong Tien Paper Long An', required: true },
         transformer: { value: '3000KVA' },
         parentSystem: { value: 'MCC XEO' },
         subSystem: { value: '' },
-        device: { value: '' },
-        device: { value: 'iLEC MFM300', required: true },
         measurement: { value: 'electric_measurement', required: true },
         db: { value: 'dongtien', required: true },
         precision: { value: 'ns' },
         shiftVar: { value: 'shift' },
-        metrics: { value: DONGTIEN_DEVICE_TEMPLATES.ilec_mfm300.metrics },
       },
       inputs: 1,
       outputs: 1,
       icon: 'font-awesome/fa-bolt',
       paletteLabel: 'dongtien-insert',
       label: function () {
-        return this.name || this.device || 'dongtien-insert';
+        if (this.name) return this.name;
+        var cfg = RED.nodes.node(this.meterConfig);
+        return (cfg && (cfg.name || cfg.device)) || 'dongtien-insert';
       },
       labelStyle: function () {
         return this.name ? 'node_label_italic' : '';
-      },
-      oneditprepare: function () {
-        var node = this;
-        var $list = $('#node-input-metrics-container');
-
-        metricsListInit($list, node.metrics);
-
-        $('#node-input-deviceType').on('change', function () {
-          var type = $(this).val();
-          if (type === 'custom') return;
-          var tpl = DONGTIEN_DEVICE_TEMPLATES[type];
-          if (tpl && !$('#node-input-device').val()) {
-            $('#node-input-device').val(tpl.device);
-          }
-        });
-
-        $('#node-load-default-metrics').on('click', function () {
-          var type = $('#node-input-deviceType').val();
-          var tpl = DONGTIEN_DEVICE_TEMPLATES[type];
-          if (!tpl) return;
-
-          if (
-            $list.editableList('length') > 0 &&
-            !window.confirm(
-              'This operation will replace the entire current mapping table with the default one."' +
-                type +
-                '". Continue?',
-            )
-          ) {
-            return;
-          }
-
-          $list.editableList('empty');
-          tpl.metrics.forEach(function (m) {
-            $list.editableList('addItem', m);
-          });
-          if (tpl.device) {
-            $('#node-input-device').val(tpl.device);
-          }
-        });
-      },
-      oneditsave: function () {
-        var $list = $('#node-input-metrics-container');
-        this.metrics = metricsListGetValue($list);
       },
     });
   })();
 </script>
 
+<script type="text/html" data-template-name="dongtien-meter-config">
+  <div class="form-row">
+    <label for="node-config-input-name"
+      ><i class="fa fa-tag"></i> Tên template</label
+    >
+    <input
+      type="text"
+      id="node-config-input-name"
+      placeholder="VD: iLEC MFM300"
+    />
+  </div>
+
+  <div class="form-row">
+    <label for="node-config-input-device"
+      ><i class="fa fa-microchip"></i> Tag "device"</label
+    >
+    <input
+      type="text"
+      id="node-config-input-device"
+      placeholder="VD: iLEC MFM300"
+    />
+  </div>
+
+  <div class="form-row">
+    <label style="width: auto"><i class="fa fa-magic"></i> Preset</label>
+    <button
+      type="button"
+      class="red-ui-button dongtien-preset-btn"
+      data-preset="ilec_mfm300"
+    >
+      iLEC MFM300
+    </button>
+    <button
+      type="button"
+      class="red-ui-button dongtien-preset-btn"
+      data-preset="arcel_acm96l_e4"
+    >
+      Arcel ACM 96L E4
+    </button>
+    <button
+      type="button"
+      class="red-ui-button dongtien-preset-btn"
+      data-preset="chint_pd7777"
+    >
+      CHINT PD7777
+    </button>
+    <button
+      type="button"
+      class="red-ui-button dongtien-preset-btn"
+      data-preset="vibration_temp"
+    >
+      Cảm biến nhiệt độ - rung
+    </button>
+  </div>
+  <div class="form-tips">
+    <i class="fa fa-info-circle"></i> Preset "Cảm biến nhiệt độ - rung" dùng hệ
+    số chia (div) <b>tạm suy đoán</b> từ dữ liệu mẫu — hãy kiểm tra lại theo
+    datasheet thực tế của cảm biến trước khi dùng.
+  </div>
+
+  <hr />
+
+  <div class="form-row">
+    <button type="button" class="red-ui-button" id="node-config-add-row">
+      <i class="fa fa-plus"></i> Thêm dòng
+    </button>
+    <button type="button" class="red-ui-button" id="node-config-export-csv">
+      <i class="fa fa-download"></i> Export CSV
+    </button>
+    <label
+      class="red-ui-button"
+      for="node-config-import-csv-file"
+      style="display: inline-block"
+    >
+      <i class="fa fa-upload"></i> Import CSV
+    </label>
+    <input
+      type="file"
+      id="node-config-import-csv-file"
+      accept=".csv"
+      style="display: none"
+    />
+  </div>
+
+  <div class="form-row">
+    <ol id="node-config-input-metrics-container" style="min-height: 260px"></ol>
+  </div>
+
+  <div class="form-tips">
+    <i class="fa fa-info-circle"></i> File CSV cần có cột
+    <code>key,name,unit,div</code> (có dòng tiêu đề hoặc không). VD:
+    <code>Ua,Phase A Voltage,V,1000</code>
+  </div>
+</script>
+
+<script type="text/html" data-help-name="dongtien-meter-config">
+  <p>
+    Config node dùng chung: chứa bảng mapping "biến kỹ thuật → tên hiển thị /
+    đơn vị / độ chia" cho một loại đồng hồ hoặc cảm biến. Có thể tạo nhiều
+    template (iLEC MFM300, Arcel ACM 96L E4, CHINT PD7777, cảm biến rung...) và
+    dùng chung cho nhiều node <code>dongtien-insert</code>.
+  </p>
+  <ul>
+    <li><b>Preset</b>: nạp nhanh bảng mapping mẫu theo loại thiết bị.</li>
+    <li>
+      <b>Export/Import CSV</b>: xuất bảng hiện tại ra file CSV để chỉnh sửa/lưu
+      trữ, hoặc nạp lại từ file CSV (cột: <code>key,name,unit,div</code>).
+    </li>
+  </ul>
+</script>
+
 <script type="text/html" data-template-name="dongtien-insert">
   <div class="form-row">
-    <label for="node-input-name"
-      ><i class="fa fa-tag"></i> Node input name</label
-    >
+    <label for="node-input-name"><i class="fa fa-tag"></i> Tên node</label>
     <input
       type="text"
       id="node-input-name"
@@ -371,38 +680,13 @@
   </div>
 
   <div class="form-row">
-    <label for="node-input-deviceType"
-      ><i class="fa fa-microchip"></i>Meter Type</label
+    <label for="node-input-meterConfig"
+      ><i class="fa fa-plug"></i> Meter Config</label
     >
-    <select id="node-input-deviceType" style="width: 60%">
-      <option value="ilec_mfm300">iLEC MFM300</option>
-      <option value="arcel_acm961_e4">Arcel ACM 96L E4</option>
-      <option value="chint_pd7777">CHINT PD7777</option>
-      <option value="custom">Customize...</option>
-    </select>
-    <button
-      type="button"
-      id="node-load-default-metrics"
-      class="red-ui-button"
-      style="margin-left: 6px"
-    >
-      <i class="fa fa-download"></i> Load default
-    </button>
+    <input type="text" id="node-input-meterConfig" />
   </div>
 
-  <div class="form-tips">
-    <i class="fa fa-info-circle"></i> Press <b>Load default</b> to quickly
-    populate the key/name/unit/div mapping table based on the selected meter
-    type. You can still freely edit, add, or delete entries later.
-  </div>
   <hr />
-
-  <div class="form-row">
-    <label for="node-input-device"
-      ><i class="fa fa-tag"></i> Tag "device"</label
-    >
-    <input type="text" id="node-input-device" placeholder="Exp: iLEC MFM300" />
-  </div>
 
   <div class="form-row">
     <label for="node-input-factory"
@@ -411,7 +695,7 @@
     <input
       type="text"
       id="node-input-factory"
-      placeholder="Ex: Dong Tien Paper Long An"
+      placeholder="VD: Dong Tien Paper Long An"
     />
   </div>
 
@@ -419,29 +703,29 @@
     <label for="node-input-transformer"
       ><i class="fa fa-bolt"></i> Tag "transformer"</label
     >
-    <input type="text" id="node-input-transformer" placeholder="Ex: 3000KVA" />
+    <input type="text" id="node-input-transformer" placeholder="VD: 3000KVA" />
   </div>
 
   <div class="form-row">
     <label for="node-input-parentSystem"
       ><i class="fa fa-sitemap"></i> Tag "parent_system"</label
     >
-    <input type="text" id="node-input-parentSystem" placeholder="Ex: MCC XEO" />
+    <input type="text" id="node-input-parentSystem" placeholder="VD: MCC XEO" />
   </div>
 
   <div class="form-row">
     <label for="node-input-subSystem"
       ><i class="fa fa-cogs"></i> Tag "sub_system"</label
     >
-    <input type="text" id="node-input-subSystem" placeholder="Ex: MCC_1.3" />
+    <input type="text" id="node-input-subSystem" placeholder="VD: MCC_1.3" />
   </div>
 
   <hr />
 
   <div class="form-row">
-    <label for="node-input-measurement">
-      <i class="fa fa-database"></i> Measurement
-    </label>
+    <label for="node-input-measurement"
+      ><i class="fa fa-database"></i> Measurement</label
+    >
     <input
       type="text"
       id="node-input-measurement"
@@ -450,9 +734,16 @@
   </div>
 
   <div class="form-row">
-    <label form="node-input-precision">
-      <i class="fa fa-clock-o"></i> Precision (msg.precision)</label>
-    </label>
+    <label for="node-input-db"
+      ><i class="fa fa-database"></i> InfluxDB (msg.db)</label
+    >
+    <input type="text" id="node-input-db" placeholder="dongtien" />
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-precision"
+      ><i class="fa fa-clock-o"></i> Precision (msg.precision)</label
+    >
     <select id="node-input-precision" style="width: 60%">
       <option value="ns">ns</option>
       <option value="us">us</option>
@@ -462,73 +753,51 @@
   </div>
 
   <div class="form-row">
-    <label for="node-input-shiftVar">
-      <i class="fa fa-globe"></i> Global var "shift"
-    </label>
+    <label for="node-input-shiftVar"
+      ><i class="fa fa-globe"></i> Global var "shift"</label
+    >
     <input type="text" id="node-input-shiftVar" placeholder="shift" />
   </div>
 </script>
 
 <script type="text/html" data-help-name="dongtien-insert">
   <p>
-    A shared node for electricity meters (iLEC MFM300, Arcel ACM 96L E4, CHINT
-    PD7777, or other custom models). It receives raw data from PLC/Modbus, maps
-    it to configured variable names, units, and scales; attaches device metadata
-    (factory, transformer, parent_system, sub_system, device, shift) as tags;
-    and outputs the result in InfluxDB Line Protocol format.
+    Node dùng chung cho các đồng hồ đo điện / cảm biến. Chọn một
+    <b>Meter Config</b> (config node chứa bảng mapping key/name/unit/div) rồi
+    cấu hình các tag định danh vị trí lắp đặt
+    (factory/transformer/parent_system/sub_system). Node nhận dữ liệu thô từ
+    PLC/Modbus, ánh xạ theo Meter Config đã chọn, và xuất ra InfluxDB Line
+    Protocol.
   </p>
 
   <h3>Input</h3>
   <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt>
     <dd>
-      Format
-      <code>{ [machine_key]: [{ts, value: {Ua: 220000, Ib: 1500, ...}}] }</code
-      >. Node take <code>machine_key</code> the first element in the payload to
-      be used as a tag <code>machine</code>.
+      Có dạng
+      <code>{ [machine_key]: [{ ts, values: { Ua: 220000, ... } }] }</code>.
     </dd>
   </dl>
 
   <h3>Output</h3>
   <dl class="message-properties">
     <dt>payload <span class="property-type">string</span></dt>
-    <dd>
-      Line Protocol string, where each line corresponds to a metric that matches
-      the configured mapping table.
-    </dd>
+    <dd>Chuỗi Line Protocol.</dd>
     <dt>db <span class="property-type">string</span></dt>
-    <dd>
-      The InfluxDB database name, used by the downstream data writing node.
-    </dd>
+    <dd>Tên database InfluxDB.</dd>
     <dt>precision <span class="property-type">string</span></dt>
-    <dd>The timestamp precision (default is "ns").</dd>
+    <dd>Độ chính xác timestamp.</dd>
   </dl>
 
-  <h3>Configuration</h3>
+  <h3>Cấu hình</h3>
   <ul>
     <li>
-      <b>Device Type</b>: Select from pre-defined mapping templates (iLEC MFM300
-      / Arcel ACM 96L E4 / CHINT PD7777) or choose "custom".
+      <b>Meter Config</b>: chọn (hoặc tạo mới bằng nút +, sửa bằng nút bút chì)
+      template mapping cho loại đồng hồ/cảm biến đang dùng.
     </li>
     <li>
-      <b>Load Defaults</b>: Automatically populates the mapping table based on
-      the selected device type.
-    </li>
-    <li>
-      <b>Device/Factory/Transformer/Parent System/Sub-system Tags</b>: Metadata
-      for device hierarchy, attached to every data point.
-    </li>
-    <li>
-      <b>Metric Mapping</b>: A 4-column table including: Key (from raw
-      <code>values</code>), Display Name (<code>name</code> tag), Unit (<code
-        >unit</code
-      >
-      tag), and Divider (value to divide the raw input by to get the final
-      <code>value</code> field).
-    </li>
-    <li>
-      <b>Global var "shift"</b>: The name of the global context variable
-      containing the current work shift (default is <code>shift</code>).
+      <b>Tag factory/transformer/parent_system/sub_system</b>: metadata vị trí
+      lắp đặt.
     </li>
   </ul>
 </script>
