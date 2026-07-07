@@ -10,6 +10,7 @@
     var DONGTIEN_PRESETS = {
       ilec_mfm300: {
         device: 'iLEC MFM300',
+        derivedMetrics: [],
         metrics: [
           { key: 'Ua', name: 'Phase A Voltage', unit: 'V', div: 1000 },
           { key: 'Ub', name: 'Phase B Voltage', unit: 'V', div: 1000 },
@@ -68,6 +69,7 @@
       },
       arcel_acm96l_e4: {
         device: 'Arcel ACM 96L E4',
+        derivedMetrics: [],
         metrics: [
           { key: 'Ua', name: 'Phase A Voltage', unit: 'V', div: 10 },
           { key: 'Ub', name: 'Phase B Voltage', unit: 'V', div: 10 },
@@ -126,6 +128,7 @@
       },
       chint_pd7777: {
         device: 'CHINT PD7777',
+        derivedMetrics: [],
         metrics: [
           { key: 'Ua', name: 'Phase A Voltage', unit: 'V', div: 10 },
           { key: 'Ub', name: 'Phase B Voltage', unit: 'V', div: 10 },
@@ -180,6 +183,32 @@
       // div là GIÁ TRỊ GIẢ ĐỊNH, hãy chỉnh lại theo datasheet thực tế.
       vibration_temp: {
         device: 'Vibration & Temperature Sensor',
+        derivedMetrics: [
+          {
+            key: 'D_disp',
+            name: 'Displacement Magnitude',
+            unit: 'um',
+            xKey: 'x-disp',
+            yKey: 'y-disp',
+            zKey: 'z-disp',
+          },
+          {
+            key: 'D_sped',
+            name: 'Velocity Magnitude',
+            unit: 'mm/s',
+            xKey: 'x-sped',
+            yKey: 'y-sped',
+            zKey: 'z-sped',
+          },
+          {
+            key: 'D_accel',
+            name: 'Acceleration Magnitude',
+            unit: 'g',
+            xKey: 'x-accel',
+            yKey: 'y-accel',
+            zKey: 'z-accel',
+          },
+        ],
         metrics: [
           { key: 'temperature', name: 'Temperature', unit: '°C', div: 10 },
           { key: 'x-sped', name: 'Velocity X', unit: 'mm/s', div: 10 },
@@ -196,7 +225,7 @@
           { key: 'z-freq', name: 'Frequency Z', unit: 'Hz', div: 1 },
         ],
       },
-      custom: { device: '', metrics: [] },
+      custom: { device: '', metrics: [], derivedMetrics: [] },
     };
 
     // ------------------------------------------------------------------
@@ -432,6 +461,159 @@
       });
     }
 
+    // ------------------------------------------------------------------
+    // Editable list cho "Đại lượng tính toán" (vector magnitude):
+    // D = sqrt(X^2 + Y^2 + Z^2), tính trên giá trị ĐÃ QUY ĐỔI của 3 biến
+    // X/Y/Z đã khai báo trong bảng mapping phía trên.
+    // ------------------------------------------------------------------
+    function derivedListInit($list, derivedMetrics) {
+      $list.editableList({
+        addButton: 'Thêm phép tính',
+        removable: true,
+        sortable: true,
+        height: 160,
+        header: $('<div/>')
+          .css({ display: 'flex' })
+          .append(
+            $('<div/>')
+              .css({
+                width: '14%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Key kết quả'),
+            $('<div/>')
+              .css({
+                width: '24%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Tên hiển thị'),
+            $('<div/>')
+              .css({
+                width: '12%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Đơn vị'),
+            $('<div/>')
+              .css({
+                width: '16%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Biến X'),
+            $('<div/>')
+              .css({
+                width: '16%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Biến Y'),
+            $('<div/>')
+              .css({
+                width: '16%',
+                display: 'inline-block',
+                fontWeight: 'bold',
+              })
+              .text('Biến Z'),
+          ),
+        addItem: function (container, _index, data) {
+          data = data || {};
+          var row = $('<div/>')
+            .css({ display: 'flex', gap: '4px' })
+            .appendTo(container);
+
+          var keyInput = $('<input/>', {
+            type: 'text',
+            placeholder: 'VD: D_disp',
+          })
+            .css({ width: '14%' })
+            .val(data.key || '')
+            .appendTo(row);
+
+          var nameInput = $('<input/>', {
+            type: 'text',
+            placeholder: 'VD: Displacement Magnitude',
+          })
+            .css({ width: '24%' })
+            .val(data.name || '')
+            .appendTo(row);
+
+          var unitInput = $('<input/>', { type: 'text', placeholder: 'VD: um' })
+            .css({ width: '12%' })
+            .val(data.unit || '')
+            .appendTo(row);
+
+          var xInput = $('<input/>', {
+            type: 'text',
+            placeholder: 'VD: x-disp',
+          })
+            .css({ width: '16%' })
+            .val(data.xKey || '')
+            .appendTo(row);
+
+          var yInput = $('<input/>', {
+            type: 'text',
+            placeholder: 'VD: y-disp',
+          })
+            .css({ width: '16%' })
+            .val(data.yKey || '')
+            .appendTo(row);
+
+          var zInput = $('<input/>', {
+            type: 'text',
+            placeholder: 'VD: z-disp',
+          })
+            .css({ width: '16%' })
+            .val(data.zKey || '')
+            .appendTo(row);
+
+          container.data('_inputs', {
+            keyInput: keyInput,
+            nameInput: nameInput,
+            unitInput: unitInput,
+            xInput: xInput,
+            yInput: yInput,
+            zInput: zInput,
+          });
+        },
+      });
+
+      (derivedMetrics || []).forEach(function (d) {
+        $list.editableList('addItem', d);
+      });
+    }
+
+    function derivedListGetValue($list) {
+      var result = [];
+      $list.editableList('items').each(function () {
+        var inputs = $(this).data('_inputs');
+        if (!inputs) return;
+        var key = (inputs.keyInput.val() || '').trim();
+        var xKey = (inputs.xInput.val() || '').trim();
+        var yKey = (inputs.yInput.val() || '').trim();
+        var zKey = (inputs.zInput.val() || '').trim();
+        if (!key || !xKey || !yKey || !zKey) return;
+        result.push({
+          key: key,
+          name: (inputs.nameInput.val() || '').trim() || key,
+          unit: (inputs.unitInput.val() || '').trim(),
+          xKey: xKey,
+          yKey: yKey,
+          zKey: zKey,
+        });
+      });
+      return result;
+    }
+
+    function derivedListReplace($list, derivedMetrics) {
+      $list.editableList('empty');
+      (derivedMetrics || []).forEach(function (d) {
+        $list.editableList('addItem', d);
+      });
+    }
+
     // ==================================================================
     // Config node: dongtien-meter-config
     // ==================================================================
@@ -441,13 +623,16 @@
         name: { value: '', required: true },
         device: { value: '' },
         metrics: { value: [] },
+        derivedMetrics: { value: [] },
       },
       label: function () {
         return this.name || this.device || 'meter-config';
       },
       oneditprepare: function () {
         var $list = $('#node-config-input-metrics-container');
+        var $derivedList = $('#node-config-input-derived-container');
         metricsListInit($list, this.metrics);
+        derivedListInit($derivedList, this.derivedMetrics);
 
         // Preset
         $('.dongtien-preset-btn').on('click', function () {
@@ -456,15 +641,17 @@
           if (!tpl) return;
 
           if (
-            $list.editableList('length') > 0 &&
+            ($list.editableList('length') > 0 ||
+              $derivedList.editableList('length') > 0) &&
             !window.confirm(
-              'Thao tác này sẽ thay thế toàn bộ bảng mapping hiện tại. Tiếp tục?',
+              'Thao tác này sẽ thay thế toàn bộ bảng mapping và đại lượng tính toán hiện tại. Tiếp tục?',
             )
           ) {
             return;
           }
 
           metricsListReplace($list, tpl.metrics);
+          derivedListReplace($derivedList, tpl.derivedMetrics);
           if (tpl.device && !$('#node-config-input-device').val()) {
             $('#node-config-input-device').val(tpl.device);
           }
@@ -516,7 +703,9 @@
       },
       oneditsave: function () {
         var $list = $('#node-config-input-metrics-container');
+        var $derivedList = $('#node-config-input-derived-container');
         this.metrics = metricsListGetValue($list);
+        this.derivedMetrics = derivedListGetValue($derivedList);
       },
     });
 
@@ -651,6 +840,24 @@
     <code>key,name,unit,div</code> (có dòng tiêu đề hoặc không). VD:
     <code>Ua,Phase A Voltage,V,1000</code>
   </div>
+
+  <hr />
+
+  <div class="form-row" style="margin-bottom: 4px">
+    <label style="width: auto"
+      ><i class="fa fa-calculator"></i> Đại lượng tính toán (Vector
+      Magnitude)</label
+    >
+  </div>
+  <div class="form-tips">
+    <i class="fa fa-info-circle"></i> Tự động tính
+    <code>D = sqrt(X² + Y² + Z²)</code> từ 3 biến X/Y/Z đã khai báo ở bảng
+    mapping phía trên (dùng giá trị <b>đã quy đổi</b>, sau khi chia độ chia).
+    Ghi ra InfluxDB như một field bình thường, tên theo cột "Tên hiển thị".
+  </div>
+  <div class="form-row">
+    <ol id="node-config-input-derived-container" style="min-height: 100px"></ol>
+  </div>
 </script>
 
 <script type="text/html" data-help-name="dongtien-meter-config">
@@ -665,6 +872,12 @@
     <li>
       <b>Export/Import CSV</b>: xuất bảng hiện tại ra file CSV để chỉnh sửa/lưu
       trữ, hoặc nạp lại từ file CSV (cột: <code>key,name,unit,div</code>).
+    </li>
+    <li>
+      <b>Đại lượng tính toán (Vector Magnitude)</b>: tự động tính
+      <code>D = sqrt(X² + Y² + Z²)</code> từ 3 biến X/Y/Z trong bảng mapping
+      (dùng giá trị đã quy đổi). Hữu ích cho cảm biến rung 3 trục
+      (displacement/velocity/acceleration).
     </li>
   </ul>
 </script>
