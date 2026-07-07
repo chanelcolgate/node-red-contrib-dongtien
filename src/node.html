@@ -176,8 +176,6 @@
           },
         ],
       },
-      // Preset THAM KHẢO cho cảm biến nhiệt độ - rung 3 trục.
-      // div là GIÁ TRỊ GIẢ ĐỊNH, hãy chỉnh lại theo datasheet thực tế.
       vibration_temp: {
         device: 'Vibration & Temperature Sensor',
         metrics: [
@@ -199,9 +197,6 @@
       custom: { device: '', metrics: [] },
     };
 
-    // ------------------------------------------------------------------
-    // CSV helpers (không phụ thuộc thư viện ngoài)
-    // ------------------------------------------------------------------
     function csvEscapeField(value) {
       var s = value === undefined || value === null ? '' : String(value);
       if (/[",\n]/.test(s)) {
@@ -225,7 +220,6 @@
       return lines.join('\n');
     }
 
-    // Parser CSV đơn giản, hỗ trợ field có dấu ngoặc kép chứa dấu phẩy/xuống dòng
     function parseCsv(text) {
       var rows = [];
       var row = [];
