@@ -13,14 +13,29 @@ export interface MetricDefinition {
   div: number;
 }
 
+export interface DerivedMetricDefinition {
+  /** Key của field kết quả, dùng làm định danh nội bộ (không cần khớp raw_data) */
+  key: string;
+  /** Tên hiển thị -> tag "name" */
+  name: string;
+  /** Đơn vị -> tag "unit" (nên trùng đơn vị của X/Y/Z) */
+  unit: string;
+  /** key của biến X, Y, Z trong bảng mapping metrics (đã quy đổi) */
+  xKey: string;
+  yKey: string;
+  zKey: string;
+}
+
 export interface DongTienMeterConfigDef extends NodeDef {
   device: string;
   metrics: MetricDefinition[];
+  derivedMetrics: DerivedMetricDefinition[];
 }
 
 export interface DongTienMeterConfigNode extends Node {
   device: string;
   metricsMap: Record<string, MetricDefinition>;
+  derivedMetricsList: DerivedMetricDefinition[];
 }
 
 export interface DongTienInsertNodeDef extends NodeDef {
@@ -74,6 +89,22 @@ function buildMetricsMap(
   return map;
 }
 
+function buildDerivedList(
+  rawDerived: DerivedMetricDefinition[] | undefined,
+): DerivedMetricDefinition[] {
+  if (!Array.isArray(rawDerived)) return [];
+  return rawDerived
+    .filter((d) => d && d.key && d.xKey && d.yKey && d.zKey)
+    .map((d) => ({
+      key: d.key,
+      name: d.name && d.name.trim() ? d.name : d.key,
+      unit: d.unit || '',
+      xKey: d.xKey,
+      yKey: d.yKey,
+      zKey: d.zKey,
+    }));
+}
+
 module.exports = function (RED: NodeAPI) {
   function DongTienMeterConfigNode(
     this: DongTienMeterConfigNode,
@@ -82,6 +113,7 @@ module.exports = function (RED: NodeAPI) {
     RED.nodes.createNode(this, config);
     this.device = config.device || '';
     this.metricsMap = buildMetricsMap(config.metrics);
+    this.derivedMetricsList = buildDerivedList(config.derivedMetrics);
   }
 
   RED.nodes.registerType(
@@ -183,6 +215,7 @@ module.exports = function (RED: NodeAPI) {
         const rawData = dataNode.values || {};
 
         const lines: string[] = [];
+        const scaledValues: Record<string, number> = {};
 
         for (const key of Object.keys(rawData)) {
           const metric = meterConfigNode.metricsMap[key];
@@ -190,6 +223,8 @@ module.exports = function (RED: NodeAPI) {
 
           const fieldValue = Number(rawData[key]) / metric.div;
           if (Number.isNaN(fieldValue)) continue;
+
+          scaledValues[key] = fieldValue;
 
           const tags = [
             `factory=${escapeString(node.factory)}`,
@@ -205,6 +240,36 @@ module.exports = function (RED: NodeAPI) {
 
           lines.push(
             `${node.measurement},${tags.join(',')} value=${fieldValue} ${timestamp}`,
+          );
+        }
+
+        // Tính các "đại lượng tính toán" dạng vector magnitude:
+        // D = sqrt(X^2 + Y^2 + Z^2), dựa trên giá trị đã quy đổi ở trên.
+        // Bỏ qua nếu thiếu bất kỳ biến X/Y/Z nào trong lần đọc này.
+        for (const derived of meterConfigNode.derivedMetricsList) {
+          const x = scaledValues[derived.xKey];
+          const y = scaledValues[derived.yKey];
+          const z = scaledValues[derived.zKey];
+
+          if (x === undefined || y === undefined || z === undefined) continue;
+
+          const magnitude = Math.sqrt(x * x + y * y + z * z);
+          if (Number.isNaN(magnitude)) continue;
+
+          const tags = [
+            `factory=${escapeString(node.factory)}`,
+            `transformer=${escapeString(node.transformer)}`,
+            `parent_system=${escapeString(node.parentSystem)}`,
+            `sub_system=${escapeString(node.subSystem)}`,
+            `machine=${escapeString(machineKey)}`,
+            `device=${escapeString(meterConfigNode.device)}`,
+            `name=${escapeString(derived.name)}`,
+            `unit=${escapeString(derived.unit)}`,
+            `shift=${escapeString(shift)}`,
+          ];
+
+          lines.push(
+            `${node.measurement},${tags.join(',')} value=${magnitude} ${timestamp}`,
           );
         }
 
