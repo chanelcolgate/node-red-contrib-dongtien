@@ -1,6 +1,13 @@
 <script type="text/javascript">
   (function () {
-    var DONGTIEN_DEVICE_TEMPLATES = {
+    // ------------------------------------------------------------------
+    // Preset mẫu cho từng loại đồng hồ / cảm biến.
+    // LƯU Ý: Preset "Cảm biến nhiệt độ - rung" dùng hệ số chia (div) là GIÁ TRỊ
+    // GIẢ ĐỊNH (đoán từ ví dụ dữ liệu thô), KHÔNG phải số liệu chính thức từ
+    // datasheet. Sau khi nạp preset này, hãy tự kiểm tra lại và chỉnh "Div"
+    // cho khớp với tài liệu kỹ thuật thật của cảm biến trước khi dùng.
+    // ------------------------------------------------------------------
+    var DONGTIEN_PRESETS = {
       ilec_mfm300: {
         device: 'iLEC MFM300',
         derivedMetrics: [],
@@ -246,11 +253,7 @@
           { key: 'z-freq', name: 'Frequency Z', unit: 'Hz', div: 1 },
         ],
       },
-      custom: {
-        device: '',
-        metrics: [],
-        derivedMetrics: [],
-      },
+      custom: { device: '', metrics: [], derivedMetrics: [] },
     };
 
     function csvEscapeField(value) {
@@ -367,6 +370,9 @@
       URL.revokeObjectURL(url);
     }
 
+    // ------------------------------------------------------------------
+    // Editable list dùng chung cho bảng mapping (key/name/unit/div)
+    // ------------------------------------------------------------------
     function metricsListInit($list, metrics) {
       $list.editableList({
         addButton: 'Thêm dòng',
@@ -632,6 +638,9 @@
       });
     }
 
+    // ==================================================================
+    // Config node: dongtien-meter-config
+    // ==================================================================
     RED.nodes.registerType('dongtien-meter-config', {
       category: 'config',
       defaults: {
@@ -652,14 +661,14 @@
         // Preset
         $('.dongtien-preset-btn').on('click', function () {
           var key = $(this).data('preset');
-          var tpl = DONGTIEN_DEVICE_TEMPLATES[key];
+          var tpl = DONGTIEN_PRESETS[key];
           if (!tpl) return;
 
           if (
             ($list.editableList('length') > 0 ||
               $derivedList.editableList('length') > 0) &&
             !window.confirm(
-              'Thao tác này sẽ thay thế toàn bộ bảng mapping và đại lượng tính toán  hiện tại. Tiếp tục?',
+              'Thao tác này sẽ thay thế toàn bộ bảng mapping và đại lượng tính toán hiện tại. Tiếp tục?',
             )
           ) {
             return;
@@ -701,7 +710,6 @@
                 );
                 return;
               }
-
               if (
                 $list.editableList('length') > 0 &&
                 !window.confirm(
@@ -717,7 +725,6 @@
               window.alert('Lỗi đọc file CSV: ' + err.message);
             }
           };
-
           reader.readAsText(file);
           $(this).val('');
         });
@@ -730,6 +737,9 @@
       },
     });
 
+    // ==================================================================
+    // Node chính: dongtien-insert
+    // ==================================================================
     RED.nodes.registerType('dongtien-insert', {
       category: 'Dong Tien',
       color: '#927FBF',
@@ -767,9 +777,9 @@
 
 <script type="text/html" data-template-name="dongtien-meter-config">
   <div class="form-row">
-    <label for="node-config-input-name">
-      <i class="fa fa-tag"></i> Tên template
-    </label>
+    <label for="node-config-input-name"
+      ><i class="fa fa-tag"></i> Tên template</label
+    >
     <input
       type="text"
       id="node-config-input-name"
@@ -784,9 +794,10 @@
     <input
       type="text"
       id="node-config-input-device"
-      placeholder="ex: iLEC MFM300"
+      placeholder="VD: iLEC MFM300"
     />
   </div>
+
   <div class="form-row">
     <label style="width: auto"><i class="fa fa-magic"></i> Preset</label>
     <button
@@ -818,15 +829,18 @@
       Cảm biến nhiệt độ - rung
     </button>
   </div>
-
   <div class="form-tips">
-    <i class="fa fa-info-circle"></i> Preset "Cảm biến nhiệt độ - rung" dùng hê
-    số chia (div) <b>tạm suy đoán</b> từ dữ liệu mẫu - hãy kiểm tra lại theo
+    <i class="fa fa-info-circle"></i> Preset "Cảm biến nhiệt độ - rung" dùng hệ
+    số chia (div) <b>tạm suy đoán</b> từ dữ liệu mẫu — hãy kiểm tra lại theo
     datasheet thực tế của cảm biến trước khi dùng.
   </div>
+
   <hr />
 
   <div class="form-row">
+    <button type="button" class="red-ui-button" id="node-config-add-row">
+      <i class="fa fa-plus"></i> Thêm dòng
+    </button>
     <button type="button" class="red-ui-button" id="node-config-export-csv">
       <i class="fa fa-download"></i> Export CSV
     </button>
@@ -844,22 +858,15 @@
       style="display: none"
     />
   </div>
+
   <div class="form-row">
     <ol id="node-config-input-metrics-container" style="min-height: 260px"></ol>
   </div>
 
   <div class="form-tips">
-    <i class="fa fa-info-circle"></i> Files CSV cần có cột
-    <code>key,name,unit,div</code> (có dòng tiêu đề hoặc không), VD:
-    <code>Ua, Phase A Voltage,V,1000</code>
-  </div>
-
-  <hr />
-
-  <div class="form-row" style="margin-bottom: 4px">
-    <label style="width: auto">
-      <i class="fa fa-calculator"></i> Đại lượng tính toán (Vector Magnitude)
-    </label>
+    <i class="fa fa-info-circle"></i> File CSV cần có cột
+    <code>key,name,unit,div</code> (có dòng tiêu đề hoặc không). VD:
+    <code>Ua,Phase A Voltage,V,1000</code>
   </div>
   <div class="form-tips">
     <i class="fa fa-info-circle"></i> Tự động tính
@@ -885,6 +892,66 @@
     <li>
       <b>Export/Import CSV</b>: xuất bảng hiện tại ra file CSV để chỉnh sửa/lưu
       trữ, hoặc nạp lại từ file CSV (cột: <code>key,name,unit,div</code>).
+    </li>
+  </ul>
+</script>
+
+<script type="text/html" data-template-name="dongtien-insert">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Tên node</label>
+    <input
+      type="text"
+      id="node-input-name"
+      placeholder="VD: Insert iLEC MFM300"
+    />
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-meterConfig"
+      ><i class="fa fa-plug"></i> Meter Config</label
+    >
+    <input type="text" id="node-input-meterConfig" />
+  </div>
+
+  <hr />
+
+  <hr />
+
+  <div class="form-row" style="margin-bottom: 4px">
+    <label style="width: auto"
+      ><i class="fa fa-calculator"></i> Đại lượng tính toán (Vector
+      Magnitude)</label
+    >
+  </div>
+  <div class="form-tips">
+    <i class="fa fa-info-circle"></i> Tự động tính
+    <code>D = sqrt(X² + Y² + Z²)</code> từ 3 biến X/Y/Z đã khai báo ở bảng
+    mapping phía trên (dùng giá trị <b>đã quy đổi</b>, sau khi chia độ chia).
+    Ghi ra InfluxDB như một field bình thường, tên theo cột "Tên hiển thị".
+  </div>
+  <div class="form-row">
+    <ol id="node-config-input-derived-container" style="min-height: 100px"></ol>
+  </div>
+</script>
+
+<script type="text/html" data-help-name="dongtien-meter-config">
+  <p>
+    Config node dùng chung: chứa bảng mapping "biến kỹ thuật → tên hiển thị /
+    đơn vị / độ chia" cho một loại đồng hồ hoặc cảm biến. Có thể tạo nhiều
+    template (iLEC MFM300, Arcel ACM 96L E4, CHINT PD7777, cảm biến rung...) và
+    dùng chung cho nhiều node <code>dongtien-insert</code>.
+  </p>
+  <ul>
+    <li><b>Preset</b>: nạp nhanh bảng mapping mẫu theo loại thiết bị.</li>
+    <li>
+      <b>Export/Import CSV</b>: xuất bảng hiện tại ra file CSV để chỉnh sửa/lưu
+      trữ, hoặc nạp lại từ file CSV (cột: <code>key,name,unit,div</code>).
+    </li>
+    <li>
+      <b>Đại lượng tính toán (Vector Magnitude)</b>: tự động tính
+      <code>D = sqrt(X² + Y² + Z²)</code> từ 3 biến X/Y/Z trong bảng mapping
+      (dùng giá trị đã quy đổi). Hữu ích cho cảm biến rung 3 trục
+      (displacement/velocity/acceleration).
     </li>
   </ul>
 </script>
@@ -943,9 +1010,9 @@
   <hr />
 
   <div class="form-row">
-    <label for="node-input-measurement">
-      <i class="fa fa-database"></i> Measurement
-    </label>
+    <label for="node-input-measurement"
+      ><i class="fa fa-database"></i> Measurement</label
+    >
     <input
       type="text"
       id="node-input-measurement"
@@ -961,8 +1028,8 @@
   </div>
 
   <div class="form-row">
-    <label for="node-input-precision">
-      <i class="fa fa-clock-o"></i> Precision (msg.precision)</label
+    <label for="node-input-precision"
+      ><i class="fa fa-clock-o"></i> Precision (msg.precision)</label
     >
     <select id="node-input-precision" style="width: 60%">
       <option value="ns">ns</option>
@@ -973,9 +1040,9 @@
   </div>
 
   <div class="form-row">
-    <label for="node-input-shiftVar">
-      <i class="fa fa-globe"></i> Global var "shift"
-    </label>
+    <label for="node-input-shiftVar"
+      ><i class="fa fa-globe"></i> Global var "shift"</label
+    >
     <input type="text" id="node-input-shiftVar" placeholder="shift" />
   </div>
 </script>
@@ -1018,12 +1085,6 @@
     <li>
       <b>Tag factory/transformer/parent_system/sub_system</b>: metadata vị trí
       lắp đặt.
-    </li>
-    <li>
-      <b>Đại lượng tính toán (Vector Magnitude)</b>: tự động tính
-      <code>D = sqrt(X² + Y² + Z²)</code> từ 3 biến X/Y/Z trong bảng mapping
-      (dùng giá trị đã quy đổi). Hữu ích cho cảm biến rung 3 trục
-      (displacement/velocity/acceleration).
     </li>
   </ul>
 </script>
