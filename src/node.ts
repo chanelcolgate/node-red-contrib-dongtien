@@ -233,7 +233,15 @@ module.exports = function (RED: NodeAPI) {
           return done();
         }
 
-        const timestamp = (dataNode.ts || Date.now()) * 1000000;
+        let timestamp = dataNode.ts || Date.now();
+        if (node.precision === 'ns') {
+          timestamp = timestamp * 1000000;
+        } else if (node.precision === 'us') {
+          timestamp = timestamp * 1000;
+        } else if (node.precision === 's') {
+          timestamp = Math.floor(timestamp / 1000);
+        }
+
         const rawData = dataNode.values || {};
 
         const lines: string[] = [];
