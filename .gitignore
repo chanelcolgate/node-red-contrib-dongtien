@@ -3,3 +3,4 @@ node_modules/
 *.tgz
 dist/
 .env
+package-lock.json
