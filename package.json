@@ -1,6 +1,6 @@
 {
   "name": "@sieumayman/node-red-contrib-dongtien",
-  "version": "0.0.1",
+  "version": "1.0.1",
   "description": "A shared node for electricity meters",
   "devDependencies": {
     "@commitlint/cli": "^19.8.0",
