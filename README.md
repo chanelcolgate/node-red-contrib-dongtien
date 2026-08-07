@@ -250,3 +250,15 @@ This package is pre-configured to adapt easily to the following factory segments
 - **Pubping & Grinding Systems**: MCC 1.1 Panel (Long-fiber disc grinder, Short-fiber disc grinder, Heat disperser), MCC 1.3 Panel (Hydrapulper, Pulping air compressor).
 - **Paper Machine Systems (XEO)**: MCC XEO Panel (Reel screen, Vacuum pump 1, Vacuum pump 3, XEO Air compressors 1 & 2).
 - **Auxiliary Power Infrastructure**: Wastewater Treatment Plant (530A CB), XEO Drive Systems (400A ACB), and Solar Energy Panels (Factory Roof Solar, Office Building Solar via 600A ATS).
+
+## Publish
+```bash
+history | awk 'NR>=340 && NR<=400'
+npm login --auth-type=legacy
+npm config set //registry.npmjs.org/:_authToken=<Access Token>
+npm publish --access public
+```
+![alt text](image.png)
+![alt text](image-1.png)
+
+[Adding a node](https://flows.nodered.org/add/node)
