@@ -2,47 +2,40 @@ import { NodeAPI, Node, NodeDef, NodeMessage } from 'node-red';
 
 /**
  * ============================================================================
- * dongtien-meter-config  (config node)
+ * caosu-pr-meter-config  (config node)
  * ----------------------------------------------------------------------------
- * Chứa bảng mapping "biến -> tên/đơn vị/độ chia" cho MỘT loại đồng hồ/cảm biến
- * (VD: iLEC MFM300, Arcel ACM 96L E4, CHINT PD7777, cảm biến rung...).
- * Được tạo 1 lần, dùng chung cho nhiều node "dongtien-insert" khác nhau (giống
- * cách 1 "S7 Endpoint" được nhiều node S7 dùng chung).
+ * Chứa bảng mapping "biến -> machineName / tagValue / fieldName / lat / long"
+ * dùng để map từ JSON đầu vào thành InfluxDB Line Protocol.
  * ============================================================================
  */
 
 export interface MetricDefinition {
-  key: string;
-  name: string;
-  unit: string;
-  div: number;
+  key: string; // key chuỗi cần tìm trong JSON (ví dụ: 'mu_tap:b_run_mlm1' hoặc 'robot:counter')
+  name?: string; // tên hiển thị (không bắt buộc)
+  machineName?: string; // giá trị cho tag machine_name
+  tagValue?: string; // giá trị tag mô tả biến (ví dụ mu_tap:b_run_mlm1)
+  fieldName?: string; // tên field trong InfluxDB, mặc định 'value'
+  lat?: number; // optional latitude
+  long?: number; // optional longitude
 }
 
-/**
- * Đại lượng tính toán dạng "vector magnitude": D = sqrt(X^2 + Y^2 + Z^2),
- * tính trên GIÁ TRỊ ĐÃ QUY ĐỔI (sau khi chia "div") của 3 biến gốc X/Y/Z.
- * Dùng cho các nhóm biến 3 trục như độ rung (displacement/velocity/acceleration).
- */
 export interface DerivedMetricDefinition {
-  /** Key của field kết quả, dùng làm định danh nội bộ (không cần khớp raw_data) */
+  // không dùng trong phiên bản này nhưng giữ để tương thích
   key: string;
-  /** Tên hiển thị -> tag "name" */
   name: string;
-  /** Đơn vị -> tag "unit" (nên trùng đơn vị của X/Y/Z) */
   unit: string;
-  /** key của biến X, Y, Z trong bảng mapping metrics (đã quy đổi) */
   xKey: string;
   yKey: string;
   zKey: string;
 }
 
-export interface DongtienMeterConfigDef extends NodeDef {
+export interface CaosuMeterConfigDef extends NodeDef {
   device: string;
   metrics: MetricDefinition[];
   derivedMetrics: DerivedMetricDefinition[];
 }
 
-export interface DongtienMeterConfigNode extends Node {
+export interface CaosuMeterConfigNode extends Node {
   device: string;
   metricsMap: Record<string, MetricDefinition>;
   derivedMetricsList: DerivedMetricDefinition[];
@@ -50,14 +43,16 @@ export interface DongtienMeterConfigNode extends Node {
 
 /**
  * ============================================================================
- * dongtien-insert (node xử lý chính)
+ * caosu-pr-insert (node xử lý chính)
  * ----------------------------------------------------------------------------
- * Nhận dữ liệu thô, tra cứu bảng mapping từ config node đã chọn, xuất ra
- * InfluxDB Line Protocol.
+ * Nhận JSON (msg.payload), tra cứu theo mapping trong config node đã chọn,
+ * xuất ra InfluxDB Line Protocol (chuỗi string trong msg.payload) cùng msg.db
+ * và msg.precision để ghi vào Influx.
+ * Thêm khả năng gắn tag lat/long để vẽ map trong Grafana.
  * ============================================================================
  */
 
-export interface DongtienInsertNodeDef extends NodeDef {
+export interface CaosuInsertNodeDef extends NodeDef {
   meterConfig: string;
   factory: string;
   transformer: string;
@@ -67,9 +62,11 @@ export interface DongtienInsertNodeDef extends NodeDef {
   db: string;
   precision: string;
   shiftVar: string;
+  latitude?: string; // optional node-level lat tag name or value
+  longitude?: string;
 }
 
-interface DongtienInsertNode extends Node {
+interface CaosuInsertNode extends Node {
   factory: string;
   transformer: string;
   parentSystem: string;
@@ -78,9 +75,11 @@ interface DongtienInsertNode extends Node {
   db: string;
   precision: string;
   shiftVar: string;
+  latitude?: string;
+  longitude?: string;
 }
 
-type DongtienInputListener = (
+type CaosuInputListener = (
   msg: NodeMessage & { payload: unknown; db?: string; precision?: string },
   send: (msg: NodeMessage) => void,
   done: (err?: Error | null) => void,
@@ -103,18 +102,19 @@ function buildMetricsMap(
   if (!Array.isArray(rawMetrics)) return map;
   for (const m of rawMetrics) {
     if (!m || !m.key) continue;
-    const div = Number(m.div);
     map[m.key] = {
       key: m.key,
       name: m.name && m.name.trim() ? m.name : m.key,
-      unit: m.unit || '',
-      div: Number.isFinite(div) && div !== 0 ? div : 1,
-    };
+      machineName: m.machineName || '',
+      tagValue: m.tagValue || m.key,
+      fieldName: m.fieldName || 'value',
+      lat: typeof m.lat === 'number' ? m.lat : undefined,
+      long: typeof m.long === 'number' ? m.long : undefined,
+    } as MetricDefinition;
   }
   return map;
 }
 
-/** Chuẩn hoá danh sách "đại lượng tính toán" (vector magnitude) từ editor. */
 function buildDerivedList(
   rawDerived: DerivedMetricDefinition[] | undefined,
 ): DerivedMetricDefinition[] {
@@ -131,31 +131,45 @@ function buildDerivedList(
     }));
 }
 
+/**
+ * Tìm value trong object bất kỳ theo key exact match (duyệt đệ quy). Trả về
+ * giá trị đầu tiên tìm thấy (undefined nếu không có).
+ */
+function findKeyInObject(obj: unknown, targetKey: string): unknown {
+  if (obj === null || obj === undefined) return undefined;
+  if (typeof obj !== 'object') return undefined;
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const v = findKeyInObject(item, targetKey);
+      if (v !== undefined) return v;
+    }
+    return undefined;
+  }
+  // obj is plain object
+  for (const k of Object.keys(obj as Record<string, unknown>)) {
+    if (k === targetKey) return (obj as Record<string, unknown>)[k];
+    const v = findKeyInObject((obj as Record<string, unknown>)[k], targetKey);
+    if (v !== undefined) return v;
+  }
+  return undefined;
+}
+
 module.exports = function (RED: NodeAPI) {
   // --------------------------------------------------------------------
-  // Config node: dongtien-meter-config
+  // Config node: caosu-pr-meter-config
   // --------------------------------------------------------------------
-  function DongtienMeterConfigNode(
-    this: DongtienMeterConfigNode,
-    config: DongtienMeterConfigDef,
-  ) {
+  function CaosuMeterConfigNode(this: CaosuMeterConfigNode, config: CaosuMeterConfigDef) {
     RED.nodes.createNode(this, config);
     this.device = config.device || '';
     this.metricsMap = buildMetricsMap(config.metrics);
     this.derivedMetricsList = buildDerivedList(config.derivedMetrics);
   }
-  RED.nodes.registerType(
-    'dongtien-meter-config',
-    DongtienMeterConfigNode as never,
-  );
+  RED.nodes.registerType('caosu-pr-meter-config', CaosuMeterConfigNode as never);
 
   // --------------------------------------------------------------------
-  // Node chính: dongtien-insert
+  // Node chính: caosu-pr-insert
   // --------------------------------------------------------------------
-  function DongtienInsertNode(
-    this: DongtienInsertNode,
-    config: DongtienInsertNodeDef,
-  ) {
+  function CaosuInsertNode(this: CaosuInsertNode, config: CaosuInsertNodeDef) {
     RED.nodes.createNode(this, config);
     const node = this;
 
@@ -163,77 +177,50 @@ module.exports = function (RED: NodeAPI) {
     node.transformer = config.transformer || '';
     node.parentSystem = config.parentSystem || '';
     node.subSystem = config.subSystem || '';
-    node.measurement = config.measurement || 'electric_measurement';
-    node.db = config.db || 'dongtien';
+    node.measurement = config.measurement || 'caosu_measurement';
+    node.db = config.db || 'caosu_phu_rieng';
     node.precision = config.precision || 'ns';
     node.shiftVar = config.shiftVar || 'shift';
+    node.latitude = config.latitude;
+    node.longitude = config.longitude;
 
     const meterConfigNode = RED.nodes.getNode(
       config.meterConfig,
-    ) as DongtienMeterConfigNode | null;
+    ) as CaosuMeterConfigNode | null;
 
     if (!meterConfigNode) {
-      node.warn(
-        'Chưa chọn "Meter Config" (hoặc config đã bị xoá). Node sẽ không xuất ra dữ liệu nào.',
-      );
+      node.warn('Chưa chọn "Meter Config" (hoặc config đã bị xoá). Node sẽ không xuất ra dữ liệu nào.');
       node.status({ fill: 'red', shape: 'ring', text: 'thiếu meter config' });
     } else if (Object.keys(meterConfigNode.metricsMap).length === 0) {
-      node.warn(
-        `Meter Config "${meterConfigNode.name || meterConfigNode.device}" chưa có biến nào (metrics rỗng).`,
-      );
+      node.warn(`Meter Config "${(meterConfigNode as any).name || meterConfigNode?.device}" chưa có biến nào (metrics rỗng).`);
       node.status({ fill: 'yellow', shape: 'ring', text: 'metrics rỗng' });
     }
 
-    const onInput: DongtienInputListener = function (msg, send, done) {
+    const onInput: CaosuInputListener = function (msg, send, done) {
       send = send || ((m: NodeMessage) => node.send(m));
-      done =
-        done ||
-        ((err?: Error | null) => {
-          if (err) node.error(err, msg);
-        });
+      done = done || ((err?: Error | null) => { if (err) node.error(err, msg); });
 
       try {
         if (!meterConfigNode) {
-          node.status({
-            fill: 'red',
-            shape: 'ring',
-            text: 'thiếu meter config',
-          });
+          node.status({ fill: 'red', shape: 'ring', text: 'thiếu meter config' });
           return done();
         }
 
-        const shift =
-          (node.context().global.get(node.shiftVar) as string) || 'Unassigned';
+        const shift = (node.context().global.get(node.shiftVar) as string) || 'Unassigned';
 
-        const rawPayload = msg.payload as
-          | Record<
-              string,
-              Array<{ ts?: number; values?: Record<string, unknown> }>
-            >
-          | undefined;
-
-        if (!rawPayload || typeof rawPayload !== 'object') {
-          node.status({
-            fill: 'yellow',
-            shape: 'ring',
-            text: 'payload không hợp lệ',
-          });
+        const payload = msg.payload as unknown;
+        if (!payload || typeof payload !== 'object') {
+          node.status({ fill: 'yellow', shape: 'ring', text: 'payload không hợp lệ' });
           return done();
         }
 
-        const machineKey = Object.keys(rawPayload)[0];
-        const dataNode = machineKey ? rawPayload[machineKey]?.[0] : undefined;
+        // Try to find a timestamp in payload (ts) otherwise use now()
+        let timestampRaw: number | undefined;
+        // payload may be object with ts property or nested - try both
+        if (typeof (payload as any).ts === 'number') timestampRaw = (payload as any).ts;
+        else if (typeof (payload as any).ts === 'string') timestampRaw = Number((payload as any).ts);
 
-        if (!machineKey || !dataNode) {
-          node.status({
-            fill: 'yellow',
-            shape: 'ring',
-            text: 'không có machine_key',
-          });
-          return done();
-        }
-
-        let timestamp = dataNode.ts || Date.now();
+        let timestamp = timestampRaw || Date.now();
         if (node.precision === 'ns') {
           timestamp = timestamp * 1000000;
         } else if (node.precision === 'us') {
@@ -242,74 +229,64 @@ module.exports = function (RED: NodeAPI) {
           timestamp = Math.floor(timestamp / 1000);
         }
 
-        const rawData = dataNode.values || {};
-
         const lines: string[] = [];
-        // Lưu lại giá trị ĐÃ QUY ĐỔI (sau khi chia "div") theo key gốc, để
-        // các "đại lượng tính toán" (vector magnitude) có thể tra cứu lại.
-        const scaledValues: Record<string, number> = {};
 
-        for (const key of Object.keys(rawData)) {
+        // For each configured metric, search payload for key and produce line
+        for (const key of Object.keys(meterConfigNode.metricsMap)) {
           const metric = meterConfigNode.metricsMap[key];
-          if (!metric) continue;
+          const rawValue = findKeyInObject(payload, metric.key);
+          if (rawValue === undefined || rawValue === null) continue;
 
-          const fieldValue = Number(rawData[key]) / metric.div;
-          if (Number.isNaN(fieldValue)) continue;
+          // If it's an object with 'value' field, prefer that
+          let val: unknown = rawValue;
+          if (typeof rawValue === 'object' && rawValue !== null && 'value' in (rawValue as any)) {
+            val = (rawValue as any).value;
+          }
 
-          scaledValues[key] = fieldValue;
+          const fieldValue = Number(val);
+          if (Number.isNaN(fieldValue)) {
+            // if not numeric, store as string field
+            const tags = [
+              `factory=${escapeString(node.factory)}`,
+              `transformer=${escapeString(node.transformer)}`,
+              `parent_system=${escapeString(node.parentSystem)}`,
+              `sub_system=${escapeString(node.subSystem)}`,
+              `device=${escapeString(meterConfigNode.device)}`,
+              `machine_name=${escapeString(metric.machineName || '')}`,
+              `mapping_tag=${escapeString(metric.tagValue || metric.key)}`,
+            ];
+            if (metric.lat !== undefined) tags.push(`lat=${escapeString(metric.lat)}`);
+            if (metric.long !== undefined) tags.push(`long=${escapeString(metric.long)}`);
+            if (node.latitude) tags.push(`latitude=${escapeString(node.latitude)}`);
+            if (node.longitude) tags.push(`longitude=${escapeString(node.longitude)}`);
 
-          const tags = [
-            `factory=${escapeString(node.factory)}`,
-            `transformer=${escapeString(node.transformer)}`,
-            `parent_system=${escapeString(node.parentSystem)}`,
-            `sub_system=${escapeString(node.subSystem)}`,
-            `machine=${escapeString(machineKey)}`,
-            `device=${escapeString(meterConfigNode.device)}`,
-            `name=${escapeString(metric.name)}`,
-            `unit=${escapeString(metric.unit)}`,
-            `shift=${escapeString(shift)}`,
-          ];
-
-          lines.push(
-            `${node.measurement},${tags.join(',')} value=${fieldValue} ${timestamp}`,
-          );
-        }
-
-        // Tính các "đại lượng tính toán" dạng vector magnitude:
-        // D = sqrt(X^2 + Y^2 + Z^2), dựa trên giá trị đã quy đổi ở trên.
-        // Bỏ qua nếu thiếu bất kỳ biến X/Y/Z nào trong lần đọc này.
-        for (const derived of meterConfigNode.derivedMetricsList) {
-          const x = scaledValues[derived.xKey];
-          const y = scaledValues[derived.yKey];
-          const z = scaledValues[derived.zKey];
-          if (x === undefined || y === undefined || z === undefined) continue;
-
-          const magnitude = Math.sqrt(x * x + y * y + z * z);
-          if (Number.isNaN(magnitude)) continue;
+            const fieldName = metric.fieldName || 'value';
+            // For string field, value must be quoted
+            lines.push(`${node.measurement},${tags.join(',')} ${fieldName}="${String(val).replace(/"/g,'\\"')}" ${timestamp}`);
+            continue;
+          }
 
           const tags = [
             `factory=${escapeString(node.factory)}`,
             `transformer=${escapeString(node.transformer)}`,
             `parent_system=${escapeString(node.parentSystem)}`,
             `sub_system=${escapeString(node.subSystem)}`,
-            `machine=${escapeString(machineKey)}`,
             `device=${escapeString(meterConfigNode.device)}`,
-            `name=${escapeString(derived.name)}`,
-            `unit=${escapeString(derived.unit)}`,
-            `shift=${escapeString(shift)}`,
+            `machine_name=${escapeString(metric.machineName || '')}`,
+            `mapping_tag=${escapeString(metric.tagValue || metric.key)}`,
           ];
 
-          lines.push(
-            `${node.measurement},${tags.join(',')} value=${magnitude} ${timestamp}`,
-          );
+          if (metric.lat !== undefined) tags.push(`lat=${escapeString(metric.lat)}`);
+          if (metric.long !== undefined) tags.push(`long=${escapeString(metric.long)}`);
+          if (node.latitude) tags.push(`latitude=${escapeString(node.latitude)}`);
+          if (node.longitude) tags.push(`longitude=${escapeString(node.longitude)}`);
+
+          const fieldName = metric.fieldName || 'value';
+          lines.push(`${node.measurement},${tags.join(',')} ${fieldName}=${fieldValue} ${timestamp}`);
         }
 
         if (lines.length === 0) {
-          node.status({
-            fill: 'yellow',
-            shape: 'ring',
-            text: 'không có biến nào khớp cấu hình',
-          });
+          node.status({ fill: 'yellow', shape: 'ring', text: 'không có biến nào khớp cấu hình' });
           return done();
         }
 
@@ -317,11 +294,7 @@ module.exports = function (RED: NodeAPI) {
         msg.db = node.db;
         msg.precision = node.precision;
 
-        node.status({
-          fill: 'green',
-          shape: 'dot',
-          text: `${lines.length} điểm dữ liệu`,
-        });
+        node.status({ fill: 'green', shape: 'dot', text: `${lines.length} điểm dữ liệu` });
 
         send(msg);
         done();
@@ -331,16 +304,12 @@ module.exports = function (RED: NodeAPI) {
       }
     };
 
-    (node.on as (event: string, listener: DongtienInputListener) => Node).call(
-      node,
-      'input',
-      onInput,
-    );
+    (node.on as (event: string, listener: CaosuInputListener) => Node).call(node, 'input', onInput);
 
     node.on('close', function () {
       node.status({});
     });
   }
 
-  RED.nodes.registerType('dongtien-insert', DongtienInsertNode as never);
+  RED.nodes.registerType('caosu-pr-insert', CaosuInsertNode as never);
 };
