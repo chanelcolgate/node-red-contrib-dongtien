@@ -1,5 +1,5 @@
 {
-  "name": "node-red-contrib-caosu-pr",
+  "name": "@sieumayman/node-red-contrib-caosu-pr",
   "version": "0.0.2",
   "description": "A shared node for electricity meters",
   "devDependencies": {
