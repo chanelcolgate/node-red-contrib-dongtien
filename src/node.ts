@@ -256,14 +256,14 @@ module.exports = function (RED: NodeAPI) {
         }
 
         // Try to find a timestamp in payload (ts) otherwise use now()
-        let timestampRaw: number | undefined;
-        // payload may be object with ts property or nested - try both
-        if (typeof (payload as any).ts === 'number')
-          timestampRaw = (payload as any).ts;
-        else if (typeof (payload as any).ts === 'string')
-          timestampRaw = Number((payload as any).ts);
+        // let timestampRaw: number | undefined;
+        // // payload may be object with ts property or nested - try both
+        // if (typeof (payload as any).ts === 'number')
+        //   timestampRaw = (payload as any).ts;
+        // else if (typeof (payload as any).ts === 'string')
+        //   timestampRaw = Number((payload as any).ts);
 
-        let timestamp = timestampRaw || Date.now();
+        let timestamp = Date.now();
         if (node.precision === 'ns') {
           timestamp = timestamp * 1000000;
         } else if (node.precision === 'us') {
@@ -338,7 +338,7 @@ module.exports = function (RED: NodeAPI) {
 
           const fieldName = metric.fieldName || 'value';
           lines.push(
-            `${node.measurement},${tags.join(',')} ${fieldName}=${fieldValue} ${timestamp}`,
+            `${node.measurement},${tags.join(',')} ${fieldName}=${fieldValue},latitude=${escapeString(node.latitude)},longitude=${escapeString(node.longitude)} ${timestamp}`,
           );
         }
 
